@@ -181,8 +181,9 @@ void setup() {
 	calibration_mode = (digitalRead(CALIBRATION_ON) == 0);
 	if (calibration_mode) {
 		// The frequency of this output should be 8 MHz / (256 * 64 * 2), or
-		// 244.14 Hz. +/- 2% on that is 239.25 Hz to 249.02 Hz. If you are in that
-		// range, the UART should work fine.
+		// 244.14 Hz. You need to adjust OSCCAL until you get within 5% for a
+		// functioning UART - the closer the better as it drifts over
+		// temperature.
 		analogWrite(CALIBRATION_OUT, 128);
 	}
 }
