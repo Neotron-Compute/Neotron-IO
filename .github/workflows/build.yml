@@ -30,5 +30,6 @@ jobs:
 
     - name: Install Minicore and run the build
       run: |
+        arduino-cli core update-index --additional-urls https://mcudude.github.io/MiniCore/package_MCUdude_MiniCore_index.json
         arduino-cli core install MiniCore:avr --additional-urls https://mcudude.github.io/MiniCore/package_MCUdude_MiniCore_index.json
         ./build.sh
