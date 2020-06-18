@@ -28,8 +28,11 @@ jobs:
     - name: Run Unit Tests
       run: ./test.sh
 
-    - name: Install Minicore and run the build
+    - name: Install MiniCore
       run: |
         arduino-cli core update-index --additional-urls https://mcudude.github.io/MiniCore/package_MCUdude_MiniCore_index.json
         arduino-cli core install MiniCore:avr --additional-urls https://mcudude.github.io/MiniCore/package_MCUdude_MiniCore_index.json
-        ./build.sh
+        sed -i 's~{runtime.tools.avr-gcc.path}~/usr~g' ~/.arduino*/packages/MiniCore/hardware/avr/*/platform.txt
+
+    - name: Run the build
+      run: ./build.sh
