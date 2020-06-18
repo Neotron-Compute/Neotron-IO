@@ -126,7 +126,9 @@ public:
 		return data != rhs.data;
 	}
 
+#ifndef TEST_MODE_NO_PRIVATE
 private:
+#endif
 	uint16_t data;
 
 	static constexpr uint8_t SHIFT_UP = 0;
@@ -240,7 +242,10 @@ public:
 		return has_new();
 	}
 
+#ifndef TEST_MODE_NO_PRIVATE
 private:
+#endif
+
 	JoystickResult m_pinmap;
 	JoystickResult m_pinmap_old;
 
