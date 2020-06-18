@@ -25,6 +25,9 @@ jobs:
     - name: Setup Arduino CLI
       uses: arduino/setup-arduino-cli@v1.0.0
 
+    - name: Run Unit Tests
+      run: ./test.sh
+
     - name: Install Minicore and run the build
       run: |
         arduino-cli core install MiniCore:avr
