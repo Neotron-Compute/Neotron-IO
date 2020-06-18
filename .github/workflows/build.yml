@@ -25,7 +25,16 @@ jobs:
     - name: Setup Arduino CLI
       uses: arduino/setup-arduino-cli@v1.0.0
 
-    - name: Install Minicore and run the build
+    - name: Run Unit Tests
+      run: ./test.sh
+
+    - name: Install MiniCore
       run: |
-        arduino-cli core install MiniCore:avr
-        ./build.sh
+        sudo apt update
+        sudo apt install gcc-avr binutils-avr avr-libc
+        arduino-cli core update-index --additional-urls https://mcudude.github.io/MiniCore/package_MCUdude_MiniCore_index.json
+        arduino-cli core install MiniCore:avr --additional-urls https://mcudude.github.io/MiniCore/package_MCUdude_MiniCore_index.json
+        sed -i 's~{runtime.tools.avr-gcc.path}~/usr~g' ~/.arduino*/packages/MiniCore/hardware/avr/*/platform.txt
+
+    - name: Run the build
+      run: ./build.sh
