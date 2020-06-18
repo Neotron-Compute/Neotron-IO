@@ -16,6 +16,7 @@
 #include <EEPROM.h>
 
 #include "joystick.h"
+#include "ps2.h"
 
 //
 // Constants
@@ -41,10 +42,10 @@ const int JS1_PIN_START_C = 2;
 
 const int JS1_PIN_SELECT = A5;
 const int JS2_PIN_SELECT = A4;
-// A3 is MS_DAT
-// A2 is MS_CLK
-// A1 is KB_DAT
-// A0 is KB_CLK
+const int MS_DAT = A3;
+const int MS_CLK = A2;
+const int KB_DAT = A1;
+const int KB_CLK = A0;
 
 const uint8_t EEPROM_MAGIC_BYTE = 0xE0;
 const int EEPROM_ADDR_MAGIC = 0;
@@ -58,6 +59,8 @@ const uint16_t DEBOUNCE_LOOPS = 5;
 
 static Joystick js1(JS1_PIN_UP, JS1_PIN_DOWN, JS1_PIN_GND_LEFT, JS1_PIN_GND_RIGHT, JS1_PIN_AB, JS1_PIN_START_C, JS1_PIN_SELECT);
 static Joystick js2(JS2_PIN_UP, JS2_PIN_DOWN, JS2_PIN_GND_LEFT, JS2_PIN_GND_RIGHT, JS2_PIN_AB, JS2_PIN_START_C, JS2_PIN_SELECT);
+static Ps2 keyboard(KB_CLK, KB_DAT);
+static Ps2 mouse(MS_CLK, MS_DAT);
 
 static bool calibration_mode = 0;
 
@@ -96,18 +99,23 @@ void loop() {
 	JoystickResult js1_bits;
 	JoystickResult js2_bits;
 
-	// Don't do this if keyboard read in progress
-	if (js1.scan()) {
-		js1_bits = js1.read();
-		Serial.print(F("1:"));
-		Serial.println(js1_bits.value(), HEX);
-	}
+	keyboard.poll();
+	mouse.poll();
 
-	// Don't do this if keyboard read in progress
-	if (js2.scan()) {
-		js2_bits = js2.read();
-		Serial.print(F("2:"));
-		Serial.println(js2_bits.value(), HEX);
+	if (!keyboard.is_active() && !mouse.is_active())
+	{
+		// Don't do this if keyboard/mouse read in progress
+		if (js1.scan()) {
+			js1_bits = js1.read();
+			Serial.print(F("1:"));
+			Serial.println(js1_bits.value(), HEX);
+		}
+
+		if (js2.scan()) {
+			js2_bits = js2.read();
+			Serial.print(F("2:"));
+			Serial.println(js2_bits.value(), HEX);
+		}
 	}
 
 	if (calibration_mode) {
@@ -141,5 +149,4 @@ void loop() {
 		Serial.print("OSC:");
 		Serial.println(OSCCAL, HEX);
 	}
-
 }
