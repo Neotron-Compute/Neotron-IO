@@ -30,7 +30,8 @@ jobs:
 
     - name: Install MiniCore
       run: |
-        apt update && apt install gcc-avr 
+        sudo apt update
+        sudo apt install gcc-avr binutils-avr 
         arduino-cli core update-index --additional-urls https://mcudude.github.io/MiniCore/package_MCUdude_MiniCore_index.json
         arduino-cli core install MiniCore:avr --additional-urls https://mcudude.github.io/MiniCore/package_MCUdude_MiniCore_index.json
         sed -i 's~{runtime.tools.avr-gcc.path}~/usr~g' ~/.arduino*/packages/MiniCore/hardware/avr/*/platform.txt
