@@ -22,29 +22,13 @@ static int digitalRead(int pin);
 
 typedef bool (*test_fn_t)(const char** sz_name);
 
-static bool test1(const char** sz_name);
-static bool test2(const char** sz_name);
-static bool test3(const char** sz_name);
-
-const test_fn_t TESTS[] = {
-	test1,
-	test2,
-	test3,
-};
-
-int main(int argc, char** argv) {
-	for(size_t i = 0; i < sizeof(TESTS) / sizeof(TESTS[0]); i++) {
-		const char* sz_name = NULL;
-		bool result = TESTS[i](&sz_name);
-		printf("Test %20s: %s\r\n", sz_name, result ? "PASS" : "FAIL");
-	}
-}
+#define DEFINE_TEST( test_name ) \
+	static bool test_name##_inner(void); \
+	static bool test_name(const char** sz_name) { if (sz_name) { *sz_name = __func__; } return test_name##_inner(); } \
+	static bool test_name##_inner(void)
 
 // Check PS/2 object times out
-static bool test1(const char** sz_name) {
-	if (sz_name) {
-		*sz_name = __func__;
-	}
+DEFINE_TEST(test1) {
 	Ps2 ps2(0, 1);
 	ps2.m_state = State::Active;
 	for(int i = 0; i < 1000; i++)
@@ -56,10 +40,7 @@ static bool test1(const char** sz_name) {
 
 
 // Check PS/2 can collect bits
-static bool test2(const char** sz_name) {
-	if (sz_name) {
-		*sz_name = __func__;
-	}
+DEFINE_TEST(test2) {
 	// 0 is clk, 1 = data
 	Ps2 ps2(0, 1);
 	uint16_t test_word = (0x03 << 9) | (0xAA << 1);
@@ -82,10 +63,7 @@ static bool test2(const char** sz_name) {
 	return (read_byte == 0xAA);
 }
 
-static bool test3(const char** sz_name) {
-	if (sz_name) {
-		*sz_name = __func__;
-	}
+DEFINE_TEST(test3) {
 	const int inputs[] = { 0x600, 0x606, 0x402 };
 	const int outputs[] = { 0x00, 0x03, 0x01 };
 	bool pass = true;
@@ -114,4 +92,18 @@ static int digitalRead(int pin) {
 	printf("Reading pin %d = %d\r\n", pin, pin_results[pin]);
 #endif
 	return pin_results[pin];
+}
+
+const test_fn_t TESTS[] = {
+	test1,
+	test2,
+	test3,
+};
+
+int main(int argc, char** argv) {
+	for(size_t i = 0; i < sizeof(TESTS) / sizeof(TESTS[0]); i++) {
+		const char* sz_name = NULL;
+		bool result = TESTS[i](&sz_name);
+		printf("Test %-20s: %s\r\n", sz_name, result ? "PASS" : "FAIL");
+	}
 }
