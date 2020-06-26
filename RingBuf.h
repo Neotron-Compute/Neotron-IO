@@ -111,6 +111,8 @@ public:
   bool lockedPush(const ET * const inElement);
   /* Pop the data at the beginning of the buffer */
   bool pop(ET &outElement) __attribute__ ((noinline));
+  /* Peek at the data at the beginning of the buffer */
+  bool peek(ET &outElement) __attribute__ ((noinline));
   /* Pop the data at the beginning of the buffer with interrupt disabled */
   bool lockedPop(ET &outElement);
   /* Return true if the buffer is full */
@@ -186,6 +188,14 @@ bool RingBuf<ET, S, IT, BT>::pop(ET &outElement)
   mReadIndex++;
   mSize--;
   if (mReadIndex == S) mReadIndex = 0;
+  return true;
+}
+
+template <typename ET, size_t S, typename IT, typename BT>
+bool RingBuf<ET, S, IT, BT>::peek(ET &outElement)
+{
+  if (isEmpty()) return false;
+  outElement = mBuffer[mReadIndex];
   return true;
 }
 

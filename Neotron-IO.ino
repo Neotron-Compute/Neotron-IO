@@ -51,6 +51,8 @@ const int EEPROM_ADDR_OSCCAL = 1;
 
 const uint16_t DEBOUNCE_LOOPS = 5;
 
+const size_t MAX_INPUT_BUFFER = 16;
+
 //
 // Variables
 //
@@ -105,6 +107,65 @@ void setup()
 	}
 }
 
+enum class InputState {
+	WantCommand,
+	WantHiNibble,
+	WantLoNibble,
+	WantNewline,
+};
+
+static InputState inputState = InputState::WantCommand;
+static char inputTarget;
+static uint8_t inputByte;
+
+static void processInput(char inputChar) {
+	switch (inputState) {
+	case InputState::WantCommand:
+		if ((inputChar == 'K') || (inputChar == 'M')) {
+			inputTarget = inputChar;
+			inputState = InputState::WantHiNibble;
+		}
+		break;
+	case InputState::WantHiNibble:
+		if ((inputChar >= '0') && (inputChar <= '9')) {
+			inputByte = (inputChar - '0') << 4;
+			inputState = InputState::WantLoNibble;
+		} else if ((inputChar >= 'A') && (inputChar <= 'F')) {
+			inputByte = (10 + inputChar - 'A') << 4;
+			inputState = InputState::WantLoNibble;
+		} else if ((inputChar >= 'a') && (inputChar <= 'f')) {
+			inputByte = (10 + inputChar - 'a') << 4;				
+			inputState = InputState::WantLoNibble;
+		} else {
+			inputState = InputState::WantCommand;
+		}
+		break;
+	case InputState::WantLoNibble:
+		if ((inputChar >= '0') && (inputChar <= '9')) {
+			inputByte |= (inputChar - '0');
+			inputState = InputState::WantNewline;
+		} else if ((inputChar >= 'A') && (inputChar <= 'F')) {
+			inputByte |= (10 + inputChar - 'A');
+			inputState = InputState::WantNewline;
+		} else if ((inputChar >= 'a') && (inputChar <= 'f')) {
+			inputByte |= (10 + inputChar - 'a');				
+			inputState = InputState::WantNewline;
+		} else {
+			inputState = InputState::WantCommand;
+		}
+		break;
+	case InputState::WantNewline:
+		if ((inputChar == '\r') || (inputChar == '\n')) {
+			if (inputTarget == 'K') {
+				gKeyboard.writeBuffer(&inputByte, 1);
+			} else if (inputTarget == 'M') {
+				gKeyboard.writeBuffer(&inputByte, 1);
+			}
+		}
+		break;
+	}
+}
+
 // the loop function runs over and over again forever
 void loop()
 {
@@ -112,18 +173,21 @@ void loop()
 	JoystickResult js1_bits;
 	JoystickResult js2_bits;
 
-	while (Serial.availableForWrite()) {
+	if (Serial.available()) {
+		char inputChar = Serial.read();
+		processInput(inputChar);
+	}
+
+	if (Serial.availableForWrite()) {
 		char data;
 		if (gSerialBuffer.pop(data)) {
 			Serial.write(data);
-		} else {
-			break;
 		}
 	}
 
 	gKeyboard.poll();
 	int keyboardByte = gKeyboard.readBuffer();
-	if (keyboardByte != -1) {
+	if (keyboardByte > 0) {
 		bufferPrint("K");
 		bufferPrintHex2(keyboardByte);
 		bufferPrintln();
@@ -131,7 +195,7 @@ void loop()
 
 	gMouse.poll();
 	int mouseByte = gKeyboard.readBuffer();
-	if (mouseByte != -1) {
+	if (mouseByte > 0) {
 		bufferPrint("M");
 		bufferPrintHex2(mouseByte);
 		bufferPrintln();
