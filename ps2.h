@@ -15,7 +15,7 @@
  * See the [LICENCE](./LICENCE) file.
  */
 
-#include <cstring>
+#include <string.h>
 #include <assert.h>
 
 enum class Ps2State
