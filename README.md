@@ -1,13 +1,88 @@
 # Neotron-IO
 
-Firmware for the Neotron I/O Controller (a Microchip AtMega328), as fitted to the Neotron 32.
+Firmware for the Neotron I/O Controller (a Microchip AtMega328), as fitted to the Neotron 32 and other Neotron systems.
 
 ## Features
 
 * PS/2 Keyboard Input
 * PS/2 Mouse Input
-* 2x Atari/SEGA MegaDrive/SEGA Genesis compatible 9-pin Joystick inputs
-* Simple ASCII protocol to the Host CPU over UART
+* I²C Interface, implementing the Microsoft [HID over I²C] Protocol
+* Debug UART Interface
+* Arduino Uno Compatible
+
+## Pinout
+
+| Pin | Arduino Name | Function            | Direction |
+|-----|--------------|---------------------|-----------|
+| PD0 | D0 / UART RX | UART Receive        | In        |
+| PD1 | D1 / UART TX | UART Transmit       | Out       |
+| PD2 | D2           | Keyboard PS/2 Clock | Bi-Dir    |
+| PD3 | D3           | Keyboard PS/2 Data  | Bi-Dir    |
+| PD4 | D4           | Mouse PS/2 Clock    | Bi-Dir    |
+| PD5 | D5           | Mouse PS/2 Data     | Bi-Dir    |
+| PD6 | D6           | System Reset        | Output    |
+| PD7 | D7           | Power Switch        | Input     |
+| PB0 | D8           | Unused              | Unused    |
+| PB1 | D9           | Power LED           | Out       |
+| PB2 | D10          | Fault LED           | Out       |
+| PB3 | D11          | ISP (MOSI)          | In        |
+| PB4 | D12          | ISP (MISO)          | Out       |
+| PB5 | D13          | ISP (SCK)           | In        |
+| PB6 | -- (Crystal) |                     | N/A       |
+| PB7 | -- (Crystal) |                     | N/A       |
+| PC0 | A0           | 5V Monitor          | In        |
+| PC1 | A1           | 3.3V Monitor        | In        |
+| PC2 | A2           | Power Enable        | Out       |
+| PC3 | A3           | Interrupt Line      | Out       |
+| PC4 | A4           | I²C Data (SDA)      | Bi-Dir    |
+| PC5 | A5           | I²C Clock (SCL)     | In        |
+| PC6 | ~RESET       | ISP (RESET)         | In        |
+
+### Power LED
+
+We light this when commanded to over the HID. It is exposed as an LED.
+
+### Fault LED
+
+We light this when commanded to over the HID. It is exposed as an LED.
+
+### 5V Monitor
+
+We divide down the 5.0V rail to below 1.1V and read it using the AtMega's ADC.
+
+### 3.3V Monitor
+
+We divide down the 3.3V rail to below 1.1V and read it using the AtMega's ADC.
+
+### Interrupt Line
+
+This goes low whenever there is data to read from the HID controller. It goes low once there is no longer any data to read (i.e. it's an edge triggered interrupt).
+
+### I²C Bus
+
+The AtMega is an I2C peripheral device with a 7-bit address of 0x6F. It implements the Microsoft HID (Human Interface Device) over I²C protocol, which is just the USB HID protocol adapted to work over I²C. It was originally developed for Windows 8 tablets that didn't have legacy i8042 keyboard controllers.
+
+### Keyboard PS/2 Bus
+
+Both lines should be pulled up with 4.7k to 5V. Both pins are open-drain - they are either inputs, or driven hard low, but never driven hard high.
+
+### Mouse PS/2 Bus
+
+This is the same as the Keyboard PS/2 bus. The only difference is how we package the bytes recevied, and that we put the mouse into automatic mode on start-up.
+
+### System Reset
+
+The system reset line is held low for 500 ms after power up, and then released (the pin is set as an input, and it has an external pull-up). This allows all the power supplies to stablise before the chips are taken out of reset.
+
+### Power Switch / Power Enable
+
+When the system is off, the main power input FET is enabled when the power switch is pressed (and pulls both `~POWER_EN` and pin PD7 to ground). Once the AtMega has started, it drives `PC2` low to keep `~POWER_EN` low even once the power switch has been released. Provided the switch is pressed for longer than it takes the AtMega to boot, the system is then running.
+
+If the power switch is pressed when the system is running, the AtMega detects this and reports the switch state over HID to the host processor. The host processor should then perform a clean-shutdown, and command the AtMega to clear the `~POWER_EN` line over HID as the last thing it does.
+
+If the power switch continues to be held for 5 seconds, and the host hasn't indicated that it is ready to shutdown, the AtMega drops the `~POWER_EN` line, cutting power to the system.
+
+**TODO: ARGH. The schematic won't work as drawn. If POWER_EN is driven hard low, and the POWER_SW pin is pulled weak high (say, 100k internal pull-ups), the power switch line floats somewhere between the two (it has 100k to Vcc and 10k to GND).**
 
 ## Calibrating
 
@@ -29,6 +104,7 @@ The Arduino libraries are licensed under the GPL, and so this project is also li
 
 See the [LICENCE](./LICENCE) file.
 
+[HID over I²C]: https://docs.microsoft.com/en-us/windows-hardware/drivers/hid/hid-over-i2c-guide
 [Arduino]: https://www.arduino.cc
 [miniCore]: https://github.com/MCUdude/MiniCore
 [ArduinoISP sketch]: https://www.arduino.cc/en/Tutorial/ArduinoISP
