@@ -1,0 +1,8 @@
+BasedOnStyle: Chromium
+BreakBeforeBraces: Allman
+IndentWidth: '4'
+Language: Cpp
+ReflowComments: 'true'
+SpacesInParentheses: 'true'
+TabWidth: '4'
+UseTab: ForIndentation
