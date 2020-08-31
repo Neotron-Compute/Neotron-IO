@@ -64,7 +64,7 @@ The AtMega is an I2C peripheral device with a 7-bit address of 0x6F. It implemen
 
 ### Keyboard PS/2 Bus
 
-Both lines should be pulled up with 4.7k to 5V. Both pins are open-drain - they are either inputs, or driven hard low, but never driven hard high.
+Both lines should be pulled up with 4.7k to 5V. Both pins are open-drain - from the MCU's point of view they are either inputs, or driven hard low, but never driven hard high.
 
 ### Mouse PS/2 Bus
 
@@ -86,9 +86,30 @@ If the power switch continues to be held for 5 seconds, and the host hasn't indi
 
 ## Calibrating
 
-The Neotron-32 hardware doesn't have a Crystal for the Neotron-IO chip. You must therefore configure it to use the 8 MHz internal-RC. Unfortunately the internal-RC is only accurate to ±10%, while for a functioning UART you need the clock to be within ± 5%. To work around this, if you boot the device with pin PB0 held low, it enter its custom Calibration Mode.
+The Neotron-32 hardware doesn't have a Crystal for the Neotron-IO chip. You must therefore configure it to use the 8 MHz internal-RC. Unfortunately the internal-RC is only accurate to ±10%, while for a functioning UART you need the clock to be within ± 5%. To work around this, if you boot the device with pin PB0 held low, it enters its custom Calibration Mode.
 
-In Calibration Mode, the Neotron-IO chip emits a 244.12 Hz square wave on pin PB0 (8 MHz divided by 32768). If you hold the Up button on your joystick then tap A, the OSCCAL calibration value is increased. If you hold Down and tap A, the OSCCAL calibration value is reduced. If you tap START, the OSCCAL value is saved to EEPROM. Use an oscilloscope and tune OSCCAL up and down until it is within 232 Hz to 256 Hz (and as close to 244.12 Hz as possible).
+In Calibration Mode, the Neotron-IO chip emits a 244.12 Hz square wave on pin PB0 (8 MHz divided by 32768). If you tap 'a' on the keyboard, the OSCCAL calibration value is increased. If you tap 'z', the OSCCAL calibration value is reduced. If you tap the space bar, the OSCCAL value is saved to EEPROM. Use an oscilloscope and tune OSCCAL up and down until it is within 232 Hz to 256 Hz (and as close to 244.12 Hz as possible).
+
+## Protocol
+
+This device implements the [HID over I²C] protocol, which is based on [HID over USB] but adapted to operate over an I²C bus. The Neotron IO chip is the I²C *DEVICE*, and the main CPU of the Neotron system is the *HOST*.
+
+### Input Top-Level Collections
+
+The Neotron-IO device exposes multiple top-level collections for Input:
+
+1. Keyboard
+2. Mouse
+3. Joystick 1
+4. Joystick 2
+5. Buttons
+
+### Output Top-Level Collections
+
+The Neotron-IO device exposes multiple top-level collections for Output:
+
+1. Keyboard LEDs
+2. System LEDs
 
 ## Compiler
 
@@ -104,7 +125,8 @@ The Arduino libraries are licensed under the GPL, and so this project is also li
 
 See the [LICENCE](./LICENCE) file.
 
-[HID over I²C]: https://docs.microsoft.com/en-us/windows-hardware/drivers/hid/hid-over-i2c-guide
+[HID over I²C]: http://msdn.microsoft.com/en-us/library/windows/hardware/hh852380.aspx
+[HID over USB]: https://www.usb.org/sites/default/files/hid1_11.pdf
 [Arduino]: https://www.arduino.cc
 [miniCore]: https://github.com/MCUdude/MiniCore
 [ArduinoISP sketch]: https://www.arduino.cc/en/Tutorial/ArduinoISP
