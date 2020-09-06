@@ -62,6 +62,93 @@ const uint16_t DEBOUNCE_LOOPS = 5;
 
 const size_t MAX_INPUT_BUFFER = 16;
 
+/**
+ * This is the default `Boot Keyboard` HID descriptor
+ * from a USB device.
+ */
+static const HIDReportShortDescriptorElement hid_keyboard_report[] = {
+    // Header
+    HIDReportShortDescriptorElement::UsagePage(
+        HidUsagePageId::GENERIC_DESKTOP ),
+    HIDReportShortDescriptorElement::UsageId(
+        HidGenericDesktopUsageId::KEYBOARD ),
+    HIDReportShortDescriptorElement::Collection(
+        HidCollectionType::APPLICATION ),
+    // Modifier keys Byte (Left-Alt, Right-Ctrl, etc)
+    HIDReportShortDescriptorElement::ReportSize( 1 ),
+    HIDReportShortDescriptorElement::ReportCount( 8 ),
+    HIDReportShortDescriptorElement::UsagePage(
+        HidUsagePageId::KEYBOARD_KEYPAD ),
+    HIDReportShortDescriptorElement::UsageMinimum( 0xE0 ),
+    HIDReportShortDescriptorElement::UsageMaximum( 0xE7 ),
+    HIDReportShortDescriptorElement::LogicalMinimum( 0 ),
+    HIDReportShortDescriptorElement::LogicalMaximum( 1 ),
+    HIDReportShortDescriptorElement::Input( false /* is_const */,
+                                            true /* is_variable */,
+                                            false /* is_relative */,
+                                            false /* is_wrap */,
+                                            false /* is_non_linear */,
+                                            false /* no_preferred */,
+                                            false /* null_state */,
+                                            false /* is_buffered_bytes */ ),
+    // Reserved Byte
+    HIDReportShortDescriptorElement::ReportSize( 8 ),
+    HIDReportShortDescriptorElement::ReportCount( 1 ),
+    HIDReportShortDescriptorElement::Input( true /* is_const */,
+                                            false /* is_variable */,
+                                            false /* is_relative */,
+                                            false /* is_wrap */,
+                                            false /* is_non_linear */,
+                                            false /* no_preferred */,
+                                            false /* null_state */,
+                                            false /* is_buffered_bytes */ ),
+    // LED Report (Num Lock, Caps Lock, Scroll Lock)
+    HIDReportShortDescriptorElement::ReportCount( 3 ),
+    HIDReportShortDescriptorElement::ReportSize( 1 ),
+    HIDReportShortDescriptorElement::UsagePage( HidUsagePageId::LEDS ),
+    HIDReportShortDescriptorElement::UsageMinimum( 1 ),
+    HIDReportShortDescriptorElement::UsageMaximum( 3 ),
+    HIDReportShortDescriptorElement::Output( false /* is_const */,
+                                             true /* is_variable */,
+                                             false /* is_relative */,
+                                             false /* is_wrap */,
+                                             false /* is_non_linear */,
+                                             false /* no_preferred */,
+                                             false /* null_state */,
+                                             false /* is_volatile */,
+                                             false /* is_buffered_bytes */ ),
+    // LED report padding (to make it up to a byte)
+    HIDReportShortDescriptorElement::ReportCount( 1 ),
+    HIDReportShortDescriptorElement::ReportSize( 5 ),
+    HIDReportShortDescriptorElement::Output( true /* is_const */,
+                                             false /* is_variable */,
+                                             false /* is_relative */,
+                                             false /* is_wrap */,
+                                             false /* is_non_linear */,
+                                             false /* no_preferred */,
+                                             false /* null_state */,
+                                             false /* is_volatile */,
+                                             false /* is_buffered_bytes */ ),
+    // Keycodes for keys currently being pressed
+    HIDReportShortDescriptorElement::ReportCount( 6 ),
+    HIDReportShortDescriptorElement::ReportSize( 8 ),
+    HIDReportShortDescriptorElement::LogicalMinimum( 0 ),
+    HIDReportShortDescriptorElement::LogicalMaximum( 255 ),
+    HIDReportShortDescriptorElement::UsagePage(
+        HidUsagePageId::KEYBOARD_KEYPAD ),
+    HIDReportShortDescriptorElement::UsageMinimum( 0 ),
+    HIDReportShortDescriptorElement::UsageMaximum( 101 ),
+    HIDReportShortDescriptorElement::Input( false /* is_const */,
+                                            false /* is_variable */,
+                                            false /* is_relative */,
+                                            false /* is_wrap */,
+                                            false /* is_non_linear */,
+                                            false /* no_preferred */,
+                                            false /* null_state */,
+                                            false /* is_buffered_bytes */ ),
+    HIDReportShortDescriptorElement::EndCollection(),
+};
+
 //
 // Variables
 //

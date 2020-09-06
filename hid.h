@@ -320,18 +320,19 @@ enum class HidReportTag
 	GLOBAL_PHYSICAL_MAXIMUM = 4,
 	/// Value of the unit exponent in base 10. E.g. -3 for milli.
 	GLOBAL_UNIT_EXPONENT = 5,
+	/* clang-format off */
 	/// Unit values.
 	///
-	/// | Nibble | System            | 0x0  | 0x1        | 0x2         | 0x3            | 0x4              |
-	/// |--------|-------------------|------|------------|-------------|----------------|------------------|
-	/// | 0      |System             | None | SI Linear  | SI Rotation | English Linear | English Rotation |
-	/// | 1      |Length             | None | Centimeter | Radians     | Inch           | Degrees          |
-	/// | 2      |Mass               | None | Gram       | Gram        | Slug           | Slug             |
-	/// | 3      |Time               | None | Seconds    | Seconds     | Seconds        | Seconds          |
-	/// | 4      |Temperature        | None | Kelvin     | Kelvin      | Farenheit      | Farenheit        |
-	/// | 5      |Current            | None | Ampere     | Ampere      | Ampere         | Ampere           |
-	/// | 6      |Luminous Intensity | None | Candela    | Candela     | Candela        | Candela          |
-	/// | 7      |Reserved           | None | None       | None        | None           | None             |
+	/// | Nibble | System             | 0x0  | 0x1        | 0x2         | 0x3            | 0x4              |
+	/// |:-------|:-------------------|:-----|:-----------|:------------|:---------------|:-----------------|
+	/// | 0      | System             | None | SI Linear  | SI Rotation | English Linear | English Rotation |
+	/// | 1      | Length             | None | Centimeter | Radians     | Inch           | Degrees          |
+	/// | 2      | Mass               | None | Gram       | Gram        | Slug           | Slug             |
+	/// | 3      | Time               | None | Seconds    | Seconds     | Seconds        | Seconds          |
+	/// | 4      | Temperature        | None | Kelvin     | Kelvin      | Farenheit      | Farenheit        |
+	/// | 5      | Current            | None | Ampere     | Ampere      | Ampere         | Ampere           |
+	/// | 6      | Luminous Intensity | None | Candela    | Candela     | Candela        | Candela          |
+	/// | 7      | Reserved           | None | None       | None        | None           | None             |
 	///
 	/// Each nibble value gives the exponent for that unit:
 	///
@@ -344,6 +345,7 @@ enum class HidReportTag
 	/// * Velocity (cm per second) = 0x000_0F011
 	/// * Energy (100 nJ) = 0x0000_E121
 	/// * Voltage (100 nV) = 0x00F0_D121
+	/* clang-format on */
 	GLOBAL_UNIT = 6,
 	/// Unsigned integer specifying the size of thereportfields in bits. This
 	/// allows the parser to build an item map for the report handler to use.
@@ -365,6 +367,35 @@ enum class HidReportTag
 	GLOBAL_PUSH = 10,
 	/// Replaces the item state table with the top structure from the stack.
 	GLOBAL_POP = 11,
+	/// Usage index for an item usage; represents a suggested usage for the item
+	/// or collection. In the case where an item represents multiple controls, a
+	/// Usage tag may suggest a usage for every variable or element in an array.
+	LOCAL_USAGE = 0,
+	// Defines the starting usage associated with an array or bitmap.
+	LOCAL_USAGE_MINIMUM = 1,
+	// Defines the ending usage associated with an array or bitmap.
+	LOCAL_USAGE_MAXIMUM = 2,
+	/// Determines the body part used for a control. Index points to a
+	/// designator in the Physical descriptor.
+	LOCAL_DESIGNATOR_INDEX = 3,
+	/// Defines the index of the starting designator associated with an array or
+	/// bitmap.
+	LOCAL_DESIGNATOR_MINIMUM = 4,
+	/// Defines the index of the ending designator associated with an array or
+	/// bitmap.
+	LOCAL_DESIGNATOR_MAXIMUM = 5,
+	/// String index for a String descriptor; allows a stringto be associated
+	/// with a particular item or control.
+	LOCAL_STRING_INDEX = 7,
+	/// Specifies the first string index when assigning a group of sequential
+	/// strings to controls in an array or bitmap.
+	LOCAL_STRING_MINIMUM = 8,
+	/// Specifies the last string index when assigning a group of sequential
+	/// strings to controls in an array or bitmap.
+	LOCAL_STRING_MAXIMUM = 9,
+	/// Defines the beginning or end of a set of localitems (1 = open set, 0 =
+	/// close set)
+	LOCAL_DELIMITER = 10,
 };
 
 /**
@@ -387,201 +418,6 @@ enum class HidReportSize
 	TWO_BYTES = 2,
 	FOUR_BYTES = 3,
 };
-
-/*
-We need to be able to encode a report descriptor like the following:
-
-Usage Page (Generic Desktop)
-Usage (Keyboard)
-Collection (Application):
-        // Modifier byte
-        Local: Report Size (1)
-        Local: Report Count (8)
-        Local: Usage Page (Key Codes)
-        Local: Usage Minimum (224)
-        Local: Usage Maximum (231)
-        Local: Logical Minimum (0)
-        Local: Logical Maximum (1)
-        ** Main: Input (Data, Variable, Absolute) **
-        // Reserved byte
-        Local: Report Count (1)
-        Local: Report Size (8)
-        ** Main: Input(Constant) **
-        // LED report
-        Local: Report Count (5)
-        Local: Report Size (1)
-        Local: Usage Page (LEDs)
-        Local: Usage Minimum (1)
-        Local: Usage Maximum (5)
-        ** Main: Output (Data, Variable, Absolute) **
-        // LED report padding
-        Local: Report Count (1)
-        Local: Report Size (3)
-        ** Main: Output(Constant) **
-        // Keycodes for pressed keys
-        Local: Report Count (6)
-        Local: Report Size (8)
-        Local: Logical Minimum (0)
-        Local: Logical Maximum (255)
-        Local: Usage Page (Key Codes)
-        Local: Usage Minimum (0)
-        Local: Usage Maximum (255)
-        ** Main: Input (Data, Array) **
-End Collection
- */
-
-/**
- * An item in the Report Descriptor, including the value.
- *
- * A Report Descriptor is made of these. The length is computed at run-time
- * based on the number of zero leading bits in the value.
- */
-struct HIDReportShortDescriptorElement
-{
-	HidReportTag tag;
-	HidReportType type;
-	uint32_t value;
-};
-
-/**
- * Creates a Main Input element for a Report Descriptor.
- *
- * @param is_const Indicates whether the item is data or a constant value.
- * @param is_variable Indicates whether the item creates variable or array
- *     data fields in reports.
- * @param is_relative Indicates whether the data is absolute (based on a fixed
- *     origin) or relative (indicating the change in value from the last
- *     report).
- * @param is_wrap Indicates whether the data “rolls over” when reaching either
- *     the extreme high or low value.
- * @param is_non_linear Indicates whether the raw data from the devicehas been
- *     processed in some way, and no longer represents a linear relationship
- *     between what is measured and the data that is reported.
- * @param no_preferred Indicates whether the control does not a preferred
- *     state to which it will return when the user is not physically
- *     interacting with the control.
- * @param null_state Indicates whether the control has a state in which it is
- *     not sending meaningful data.
- * @param is_buffered_bytes Indicates that the control emits a fixed-size
- *     stream of bytes as opposed to a single numeric quantity.
- */
-constexpr HIDReportShortDescriptorElement hid_make_main_input_element(
-    bool is_const,
-    bool is_variable,
-    bool is_relative,
-    bool is_wrap,
-    bool is_non_linear,
-    bool no_preferred,
-    bool null_state,
-    bool is_buffered_bytes )
-{
-	return HIDReportShortDescriptorElement{
-	    HidReportTag::MAIN_INPUT, HidReportType::MAIN,
-	    ( ( is_const ) ? ( 1u << 0 ) : 0u ) +
-	        ( ( is_variable ) ? ( 1u << 1 ) : 0u ) +
-	        ( ( is_relative ) ? ( 1u << 2 ) : 0u ) +
-	        ( ( is_wrap ) ? ( 1u << 3 ) : 0u ) +
-	        ( ( is_non_linear ) ? ( 1u << 4 ) : 0u ) +
-	        ( ( no_preferred ) ? ( 1u << 5 ) : 0u ) +
-	        ( ( null_state ) ? ( 1u << 6 ) : 0u ) +
-	        ( ( is_buffered_bytes ) ? ( 1u << 8 ) : 0u ) };
-}
-
-/**
- * Creates a Main Output element for a Report Descriptor.
- *
- * @param is_const Indicates whether the item is data or a constant value.
- * @param is_variable Indicates whether the item creates variable or array
- *     data fields in reports.
- * @param is_relative Indicates whether the data is absolute (based on a fixed
- *     origin) or relative (indicating the change in value from the last
- *     report).
- * @param is_wrap Indicates whether the data “rolls over” when reaching either
- *     the extreme high or low value.
- * @param is_non_linear Indicates whether the raw data from the devicehas been
- *     processed in some way, and no longer represents a linear relationship
- *     between what is measured and the data that is reported.
- * @param no_preferred Indicates whether the control does not a preferred
- *     state to which it will return when the user is not physically
- *     interacting with the control.
- * @param null_state Indicates whether the control has a state in which it is
- *     not sending meaningful data.
- * @param is_volatile Indicates whether the Output control's value should be
- *     changed by the host or not.
- * @param is_buffered_bytes Indicates that the control emits a fixed-size
- *     stream of bytes as opposed to a single numeric quantity.
- */
-constexpr HIDReportShortDescriptorElement hid_make_main_output_element(
-    bool is_const,
-    bool is_variable,
-    bool is_relative,
-    bool is_wrap,
-    bool is_non_linear,
-    bool no_preferred,
-    bool null_state,
-    bool is_volatile,
-    bool is_buffered_bytes )
-{
-	return HIDReportShortDescriptorElement{
-	    HidReportTag::MAIN_OUTPUT, HidReportType::MAIN,
-	    ( ( is_const ) ? ( 1u << 0 ) : 0u ) +
-	        ( ( is_variable ) ? ( 1u << 1 ) : 0u ) +
-	        ( ( is_relative ) ? ( 1u << 2 ) : 0u ) +
-	        ( ( is_wrap ) ? ( 1u << 3 ) : 0u ) +
-	        ( ( is_non_linear ) ? ( 1u << 4 ) : 0u ) +
-	        ( ( no_preferred ) ? ( 1u << 5 ) : 0u ) +
-	        ( ( null_state ) ? ( 1u << 6 ) : 0u ) +
-	        ( ( is_volatile ) ? ( 1u << 7 ) : 0u ) +
-	        ( ( is_buffered_bytes ) ? ( 1u << 8 ) : 0u ) };
-}
-
-/**
- * Creates a Main Feature element for a Report Descriptor.
- *
- * @param is_const Indicates whether the item is data or a constant value.
- * @param is_variable Indicates whether the item creates variable or array
- *     data fields in reports.
- * @param is_relative Indicates whether the data is absolute (based on a fixed
- *     origin) or relative (indicating the change in value from the last
- *     report).
- * @param is_wrap Indicates whether the data “rolls over” when reaching either
- *     the extreme high or low value.
- * @param is_non_linear Indicates whether the raw data from the devicehas been
- *     processed in some way, and no longer represents a linear relationship
- *     between what is measured and the data that is reported.
- * @param no_preferred Indicates whether the control does not a preferred
- *     state to which it will return when the user is not physically
- *     interacting with the control.
- * @param null_state Indicates whether the control has a state in which it is
- *     not sending meaningful data.
- * @param is_volatile Indicates whether the Output control's value should be
- *     changed by the host or not.
- * @param is_buffered_bytes Indicates that the control emits a fixed-size
- *     stream of bytes as opposed to a single numeric quantity.
- */
-constexpr HIDReportShortDescriptorElement hid_make_main_feature_element(
-    bool is_const,
-    bool is_variable,
-    bool is_relative,
-    bool is_wrap,
-    bool is_non_linear,
-    bool no_preferred,
-    bool null_state,
-    bool is_volatile,
-    bool is_buffered_bytes )
-{
-	return HIDReportShortDescriptorElement{
-	    HidReportTag::MAIN_FEATURE, HidReportType::MAIN,
-	    ( ( is_const ) ? ( 1u << 0 ) : 0u ) +
-	        ( ( is_variable ) ? ( 1u << 1 ) : 0u ) +
-	        ( ( is_relative ) ? ( 1u << 2 ) : 0u ) +
-	        ( ( is_wrap ) ? ( 1u << 3 ) : 0u ) +
-	        ( ( is_non_linear ) ? ( 1u << 4 ) : 0u ) +
-	        ( ( no_preferred ) ? ( 1u << 5 ) : 0u ) +
-	        ( ( null_state ) ? ( 1u << 6 ) : 0u ) +
-	        ( ( is_volatile ) ? ( 1u << 7 ) : 0u ) +
-	        ( ( is_buffered_bytes ) ? ( 1u << 8 ) : 0u ) };
-}
 
 /**
  * Types of collection supported by HID.
@@ -648,36 +484,6 @@ enum class HidCollectionType
 };
 
 /**
- * Creates a Collection element for a Report Descriptor.
- *
- * A Collection item identifies a relationship between two or more data
- * (Input, Output, or Feature.) For example, a mouse could be described as a
- * collection of two to four data (x, y, button 1, button 2). While the
- * Collection item opens a collection of data, the End Collection item closes
- * a collection.
- *
- * @param collection_type Type of collection
- */
-constexpr HIDReportShortDescriptorElement hid_make_collection_element(
-    HidCollectionType collection_type )
-{
-	return HIDReportShortDescriptorElement{
-	    HidReportTag::MAIN_COLLECTION, HidReportType::MAIN,
-	    static_cast<uint32_t>( collection_type ) };
-}
-
-/**
- * Creates an End Collection element for a Report Descriptor.
- *
- * An End Collection item closes a collection.
- */
-constexpr HIDReportShortDescriptorElement hid_make_collection_element( void )
-{
-	return HIDReportShortDescriptorElement{ HidReportTag::MAIN_END_COLLECTION,
-	                                        HidReportType::MAIN, 0 };
-}
-
-/**
  * HID Usage Page IDs.
  */
 enum class HidUsagePageId
@@ -717,18 +523,619 @@ enum class HidUsagePageId
 };
 
 /**
- * Creates an Global Usage Page element for a Report Descriptor.
- *
- * @param usage_page the usage page to set
- *
+ * Usage IDs for the `HidUsagePageId::GENERIC_DESKTOP` usage page.
  */
-constexpr HIDReportShortDescriptorElement hid_make_usage_page_element(
-    HidUsagePageId usage_page )
+enum class HidGenericDesktopUsageId : uint16_t
 {
-	return HIDReportShortDescriptorElement{
-	    HidReportTag::GLOBAL_USAGE_PAGE, HidReportType::GLOBAL,
-	    static_cast<uint32_t>( usage_page ) << 16 };
-}
+	/// Pointer
+	POINTER = 0x01,
+	/// Mouse
+	MOUSE = 0x02,
+	/// Reserved
+	RESERVED = 0x03,
+	/// Joystick
+	JOYSTICK = 0x04,
+	/// Game Pad
+	GAME_PAD = 0x05,
+	/// Keyboard
+	KEYBOARD = 0x06,
+	/// Keypad
+	KEYPAD = 0x07,
+	/// Multi-axis Controller
+	MULTI_AXIS_CONTROLLER = 0x08,
+	/// Tablet PC System Controls
+	TABLET_PC_SYSTEM_CONTROLS = 0x09,
+	/// X
+	X = 0x30,
+	/// Y
+	Y = 0x31,
+	/// Z
+	Z = 0x32,
+	/// Rx
+	RX = 0x33,
+	/// Ry
+	RY = 0x34,
+	/// Rz
+	RZ = 0x35,
+	/// Slider
+	SLIDER = 0x36,
+	/// Dial
+	DIAL = 0x37,
+	/// Wheel
+	WHEEL = 0x38,
+	/// Hat switch
+	HAT_SWITCH = 0x39,
+	/// Counted BufferCL
+	COUNTED_BUFFERCL = 0x3A,
+	/// Byte Count
+	BYTE_COUNT = 0x3B,
+	/// Motion Wakeup
+	MOTION_WAKEUP = 0x3C,
+	/// Start
+	START = 0x3D,
+	/// Select
+	SELECT = 0x3E,
+	/// Vx
+	VX = 0x40,
+	/// Vy
+	VY = 0x41,
+	/// Vz
+	VZ = 0x42,
+	/// Vbrx
+	VBRX = 0x43,
+	/// Vbry
+	VBRY = 0x44,
+	/// Vbrz
+	VBRZ = 0x45,
+	/// Vno
+	VNO = 0x46,
+	/// Feature Notification
+	FEATURE_NOTIFICATION = 0x47,
+	/// Resolution Multiplier
+	RESOLUTION_MULTIPLIER = 0x48,
+	/// System Control
+	SYSTEM_CONTROL = 0x80,
+	/// System Power Down
+	SYSTEM_POWER_DOWN = 0x81,
+	/// System Sleep
+	SYSTEM_SLEEP = 0x82,
+	/// System Wake Up
+	SYSTEM_WAKE_UP = 0x83,
+	/// System Context Menu
+	SYSTEM_CONTEXT_MENU = 0x84,
+	/// System Main Menu
+	SYSTEM_MAIN_MENU = 0x85,
+	/// System App Menu
+	SYSTEM_APP_MENU = 0x86,
+	/// System Menu Help
+	SYSTEM_MENU_HELP = 0x87,
+	/// System Menu Exit
+	SYSTEM_MENU_EXIT = 0x88,
+	/// System Menu Select
+	SYSTEM_MENU_SELECT = 0x89,
+	/// System Menu Right
+	SYSTEM_MENU_RIGHT = 0x8A,
+	/// System Menu Left
+	SYSTEM_MENU_LEFT = 0x8B,
+	/// System Menu Up
+	SYSTEM_MENU_UP = 0x8C,
+	/// System Menu Down
+	SYSTEM_MENU_DOWN = 0x8D,
+	/// System Cold Restart
+	SYSTEM_COLD_RESTART = 0x8E,
+	/// System Warm Restart
+	SYSTEM_WARM_RESTART = 0x8F,
+	/// D-pad Up
+	D_PAD_UP = 0x90,
+	/// D-pad Down
+	D_PAD_DOWN = 0x91,
+	/// D-pad Right
+	D_PAD_RIGHT = 0x92,
+	/// D-pad Left
+	D_PAD_LEFT = 0x93,
+	/// System Dock
+	SYSTEM_DOCK = 0xA0,
+	/// System Undock
+	SYSTEM_UNDOCK = 0xA1,
+	/// System Setup
+	SYSTEM_SETUP = 0xA2,
+	/// System Break
+	SYSTEM_BREAK = 0xA3,
+	/// System Debugger Break
+	SYSTEM_DEBUGGER_BREAK = 0xA4,
+	/// Application Break
+	APPLICATION_BREAK = 0xA5,
+	/// Application Debugger Break
+	APPLICATION_DEBUGGER_BREAK = 0xA6,
+	/// System Speaker Mute
+	SYSTEM_SPEAKER_MUTE = 0xA7,
+	/// System Hibernate
+	SYSTEM_HIBERNATE = 0xA8,
+	/// System Display Invert
+	SYSTEM_DISPLAY_INVERT = 0xB0,
+	/// System Display Internal
+	SYSTEM_DISPLAY_INTERNAL = 0xB1,
+	/// System Display External
+	SYSTEM_DISPLAY_EXTERNAL = 0xB2,
+	/// System Display Both
+	SYSTEM_DISPLAY_BOTH = 0xB3,
+	/// System Display Dual
+	SYSTEM_DISPLAY_DUAL = 0xB4,
+	/// System Display Toggle Int/Ext
+	SYSTEM_DISPLAY_TOGGLE_INT_EXT = 0xB5,
+	/// System Display Swap Primary/Secondary
+	SYSTEM_DISPLAY_SWAP_PRIMARY_SECONDARY = 0xB6,
+	/// System Display LCD Autoscale
+	SYSTEM_DISPLAY_LCD_AUTOSCALE = 0xB7,
+};
+
+/*
+We need to be able to encode a report descriptor like the following:
+
+Usage Page (Generic Desktop)
+Usage (Keyboard)
+Collection (Application):
+        // Modifier byte
+        Local: Report Size (1)
+        Local: Report Count (8)
+        Local: Usage Page (Key Codes)
+        Local: Usage Minimum (224)
+        Local: Usage Maximum (231)
+        Local: Logical Minimum (0)
+        Local: Logical Maximum (1)
+        ** Main: Input (Data, Variable, Absolute) **
+        // Reserved byte
+        Local: Report Count (1)
+        Local: Report Size (8)
+        ** Main: Input(Constant) **
+        // LED report
+        Local: Report Count (5)
+        Local: Report Size (1)
+        Local: Usage Page (LEDs)
+        Local: Usage Minimum (1)
+        Local: Usage Maximum (5)
+        ** Main: Output (Data, Variable, Absolute) **
+        // LED report padding
+        Local: Report Count (1)
+        Local: Report Size (3)
+        ** Main: Output(Constant) **
+        // Keycodes for pressed keys
+        Local: Report Count (6)
+        Local: Report Size (8)
+        Local: Logical Minimum (0)
+        Local: Logical Maximum (255)
+        Local: Usage Page (Key Codes)
+        Local: Usage Minimum (0)
+        Local: Usage Maximum (255)
+        ** Main: Input (Data, Array) **
+End Collection
+ */
+
+/**
+ * An item in the Report Descriptor, including the value.
+ *
+ * A Report Descriptor is made of these. The length is computed at run-time
+ * based on the number of zero leading bits in the value.
+ */
+struct HIDReportShortDescriptorElement
+{
+	uint8_t header;
+	uint32_t value;
+
+	/**
+	 * Pack this Short Descriptor into a byte array.
+	 *
+	 * The `value` field has variable length encoding.
+	 *
+	 * @param p_buffer where to write the encoded data
+	 * @param space how much space in the `p_buffer` buffer
+	 * @return how many bytes we wanted to write (whether or not they fitted)
+	 */
+	size_t pack( uint8_t* p_buffer, size_t space ) const
+	{
+		size_t space_needed = 1;
+		uint8_t bSize = size_of_value( this->value );
+		switch ( bSize )
+		{
+			case 3:
+				space_needed += 4;
+				break;
+			case 2:
+				space_needed += 2;
+				break;
+			case 1:
+				space_needed += 1;
+				break;
+			default:
+				break;
+		}
+
+		const size_t return_value = space_needed;
+
+		if ( space >= 1 )
+		{
+			*p_buffer++ = header;
+			space--;
+			space_needed--;
+		}
+
+		size_t value_copy = value;
+		while ( space-- && space_needed-- )
+		{
+			*p_buffer++ = value_copy & 0xFF;
+			value_copy >>= 8;
+		}
+
+		return return_value;
+	}
+
+	/**
+	 * How many bytes do we want to take up when packing `value`.
+	 *
+	 * @param value the value we want to think about packing
+	 * @return the `bSize` for that value (3, 2, 1 or 0)
+	 */
+	static constexpr uint8_t size_of_value( uint32_t value )
+	{
+		return ( value >= 0x00010000 ) ? 3
+		                               : ( ( value >= 0x000000FF ) ? 2 : 1 );
+	}
+
+	/**
+	 * Build the object from a tag, type and a value.
+	 */
+	constexpr HIDReportShortDescriptorElement( HidReportTag tag,
+	                                           HidReportType type,
+	                                           uint32_t value )
+	    : header( ( static_cast<uint8_t>( tag ) << 4 ) |
+	              ( static_cast<uint8_t>( type ) << 2 ) |
+	              size_of_value( value ) ),
+	      value( value )
+	{
+	}
+
+	/**
+	 * Creates a Main Input element for a Report Descriptor.
+	 *
+	 * @param is_const Indicates whether the item is data or a constant value.
+	 * @param is_variable Indicates whether the item creates variable or array
+	 *     data fields in reports.
+	 * @param is_relative Indicates whether the data is absolute (based on a
+	 * fixed origin) or relative (indicating the change in value from the last
+	 *     report).
+	 * @param is_wrap Indicates whether the data “rolls over” when reaching
+	 * either the extreme high or low value.
+	 * @param is_non_linear Indicates whether the raw data from the devicehas
+	 * been processed in some way, and no longer represents a linear
+	 * relationship between what is measured and the data that is reported.
+	 * @param no_preferred Indicates whether the control does not a preferred
+	 *     state to which it will return when the user is not physically
+	 *     interacting with the control.
+	 * @param null_state Indicates whether the control has a state in which it
+	 * is not sending meaningful data.
+	 * @param is_buffered_bytes Indicates that the control emits a fixed-size
+	 *     stream of bytes as opposed to a single numeric quantity.
+	 */
+	static constexpr HIDReportShortDescriptorElement Input(
+	    bool is_const,
+	    bool is_variable,
+	    bool is_relative,
+	    bool is_wrap,
+	    bool is_non_linear,
+	    bool no_preferred,
+	    bool null_state,
+	    bool is_buffered_bytes )
+	{
+		return HIDReportShortDescriptorElement(
+		    HidReportTag::MAIN_INPUT, HidReportType::MAIN,
+		    ( ( is_const ) ? ( 1u << 0 ) : 0u ) +
+		        ( ( is_variable ) ? ( 1u << 1 ) : 0u ) +
+		        ( ( is_relative ) ? ( 1u << 2 ) : 0u ) +
+		        ( ( is_wrap ) ? ( 1u << 3 ) : 0u ) +
+		        ( ( is_non_linear ) ? ( 1u << 4 ) : 0u ) +
+		        ( ( no_preferred ) ? ( 1u << 5 ) : 0u ) +
+		        ( ( null_state ) ? ( 1u << 6 ) : 0u ) +
+		        ( ( is_buffered_bytes ) ? ( 1u << 8 ) : 0u ) );
+	}
+
+	/**
+	 * Creates a Main Output element for a Report Descriptor.
+	 *
+	 * @param is_const Indicates whether the item is data or a constant value.
+	 * @param is_variable Indicates whether the item creates variable or array
+	 *     data fields in reports.
+	 * @param is_relative Indicates whether the data is absolute (based on a
+	 * fixed origin) or relative (indicating the change in value from the last
+	 *     report).
+	 * @param is_wrap Indicates whether the data “rolls over” when reaching
+	 * either the extreme high or low value.
+	 * @param is_non_linear Indicates whether the raw data from the devicehas
+	 * been processed in some way, and no longer represents a linear
+	 * relationship between what is measured and the data that is reported.
+	 * @param no_preferred Indicates whether the control does not a preferred
+	 *     state to which it will return when the user is not physically
+	 *     interacting with the control.
+	 * @param null_state Indicates whether the control has a state in which it
+	 * is not sending meaningful data.
+	 * @param is_volatile Indicates whether the Output control's value should be
+	 *     changed by the host or not.
+	 * @param is_buffered_bytes Indicates that the control emits a fixed-size
+	 *     stream of bytes as opposed to a single numeric quantity.
+	 */
+	static constexpr HIDReportShortDescriptorElement Output(
+	    bool is_const,
+	    bool is_variable,
+	    bool is_relative,
+	    bool is_wrap,
+	    bool is_non_linear,
+	    bool no_preferred,
+	    bool null_state,
+	    bool is_volatile,
+	    bool is_buffered_bytes )
+	{
+		return HIDReportShortDescriptorElement(
+		    HidReportTag::MAIN_OUTPUT, HidReportType::MAIN,
+		    ( ( is_const ) ? ( 1u << 0 ) : 0u ) +
+		        ( ( is_variable ) ? ( 1u << 1 ) : 0u ) +
+		        ( ( is_relative ) ? ( 1u << 2 ) : 0u ) +
+		        ( ( is_wrap ) ? ( 1u << 3 ) : 0u ) +
+		        ( ( is_non_linear ) ? ( 1u << 4 ) : 0u ) +
+		        ( ( no_preferred ) ? ( 1u << 5 ) : 0u ) +
+		        ( ( null_state ) ? ( 1u << 6 ) : 0u ) +
+		        ( ( is_volatile ) ? ( 1u << 7 ) : 0u ) +
+		        ( ( is_buffered_bytes ) ? ( 1u << 8 ) : 0u ) );
+	}
+
+	/**
+	 * Creates a Main Feature element for a Report Descriptor.
+	 *
+	 * @param is_const Indicates whether the item is data or a constant value.
+	 * @param is_variable Indicates whether the item creates variable or array
+	 *     data fields in reports.
+	 * @param is_relative Indicates whether the data is absolute (based on a
+	 * fixed origin) or relative (indicating the change in value from the last
+	 *     report).
+	 * @param is_wrap Indicates whether the data “rolls over” when reaching
+	 * either the extreme high or low value.
+	 * @param is_non_linear Indicates whether the raw data from the devicehas
+	 * been processed in some way, and no longer represents a linear
+	 * relationship between what is measured and the data that is reported.
+	 * @param no_preferred Indicates whether the control does not a preferred
+	 *     state to which it will return when the user is not physically
+	 *     interacting with the control.
+	 * @param null_state Indicates whether the control has a state in which it
+	 * is not sending meaningful data.
+	 * @param is_volatile Indicates whether the Output control's value should be
+	 *     changed by the host or not.
+	 * @param is_buffered_bytes Indicates that the control emits a fixed-size
+	 *     stream of bytes as opposed to a single numeric quantity.
+	 */
+	static constexpr HIDReportShortDescriptorElement Feature(
+	    bool is_const,
+	    bool is_variable,
+	    bool is_relative,
+	    bool is_wrap,
+	    bool is_non_linear,
+	    bool no_preferred,
+	    bool null_state,
+	    bool is_volatile,
+	    bool is_buffered_bytes )
+	{
+		return HIDReportShortDescriptorElement(
+		    HidReportTag::MAIN_FEATURE, HidReportType::MAIN,
+		    ( ( is_const ) ? ( 1u << 0 ) : 0u ) +
+		        ( ( is_variable ) ? ( 1u << 1 ) : 0u ) +
+		        ( ( is_relative ) ? ( 1u << 2 ) : 0u ) +
+		        ( ( is_wrap ) ? ( 1u << 3 ) : 0u ) +
+		        ( ( is_non_linear ) ? ( 1u << 4 ) : 0u ) +
+		        ( ( no_preferred ) ? ( 1u << 5 ) : 0u ) +
+		        ( ( null_state ) ? ( 1u << 6 ) : 0u ) +
+		        ( ( is_volatile ) ? ( 1u << 7 ) : 0u ) +
+		        ( ( is_buffered_bytes ) ? ( 1u << 8 ) : 0u ) );
+	}
+
+	/**
+	 * Creates a Collection element for a Report Descriptor.
+	 *
+	 * A Collection item identifies a relationship between two or more data
+	 * (Input, Output, or Feature.) For example, a mouse could be described as a
+	 * collection of two to four data (x, y, button 1, button 2). While the
+	 * Collection item opens a collection of data, the End Collection item
+	 * closes a collection.
+	 *
+	 * @param collection_type Type of collection
+	 */
+	static constexpr HIDReportShortDescriptorElement Collection(
+	    HidCollectionType collection_type )
+	{
+		return HIDReportShortDescriptorElement(
+		    HidReportTag::MAIN_COLLECTION, HidReportType::MAIN,
+		    static_cast<uint32_t>( collection_type ) );
+	}
+
+	/**
+	 * Creates an End Collection element for a Report Descriptor.
+	 *
+	 * An End Collection item closes a collection.
+	 */
+	static constexpr HIDReportShortDescriptorElement EndCollection( void )
+	{
+		return HIDReportShortDescriptorElement(
+		    HidReportTag::MAIN_END_COLLECTION, HidReportType::MAIN, 0 );
+	}
+
+	/**
+	 * Creates an Global Usage Page element for a Report Descriptor.
+	 *
+	 * @param usage_page the usage page to set
+	 *
+	 */
+	static constexpr HIDReportShortDescriptorElement UsagePage(
+	    HidUsagePageId usage_page )
+	{
+		return HIDReportShortDescriptorElement(
+		    HidReportTag::GLOBAL_USAGE_PAGE, HidReportType::GLOBAL,
+		    static_cast<uint16_t>( usage_page ) );
+	}
+
+	/**
+	 * Creates an Local Usage ID element for a Report Descriptor.
+	 *
+	 * Any 16-bit Usage ID is assumed to belong to the previous Usage Page.
+	 *
+	 * @param usage_id the usage ID to set
+	 */
+	template <class T>
+	static constexpr HIDReportShortDescriptorElement UsageId( T usage_id )
+	{
+		return HIDReportShortDescriptorElement(
+		    HidReportTag::LOCAL_USAGE, HidReportType::LOCAL,
+		    static_cast<uint32_t>( usage_id ) );
+	}
+
+	/**
+	 * Creates an Local Usage ID element for a Report Descriptor.
+	 *
+	 * Takes a Usage ID and a page.
+	 *
+	 * @param usage_id the usage ID to set
+	 */
+	template <class T>
+	static constexpr HIDReportShortDescriptorElement UsageId(
+	    HidUsagePageId page_id,
+	    T usage_id )
+	{
+		return HIDReportShortDescriptorElement(
+		    HidReportTag::LOCAL_USAGE, HidReportType::LOCAL,
+		    ( static_cast<uint32_t>( page_id ) << 16 ) |
+		        static_cast<uint32_t>( usage_id ) );
+	}
+
+	/**
+	 * Creates a ReportSize element for a Report Descriptor.
+	 *
+	 * Unsigned integer specifying the size of the report fields in bits. This
+	 * allows the parser to build an item map for the report handler to use.
+	 *
+	 * @param size Size of an element, in bits.
+	 */
+	static constexpr HIDReportShortDescriptorElement ReportSize( uint32_t size )
+	{
+		return HIDReportShortDescriptorElement(
+		    HidReportTag::GLOBAL_REPORT_SIZE, HidReportType::GLOBAL, size );
+	}
+
+	/**
+	 * Creates a ReportCount element for a Report Descriptor.
+	 *
+	 * Unsigned integer specifying the number of data fields for the item;
+	 * determines how many fields are included in the report for this
+	 * particular item (and consequently how many bits are added to the
+	 * report).
+	 *
+	 * @param size Size of a report item, in elements.
+	 */
+	static constexpr HIDReportShortDescriptorElement ReportCount(
+	    uint32_t count )
+	{
+		return HIDReportShortDescriptorElement(
+		    HidReportTag::GLOBAL_REPORT_COUNT, HidReportType::GLOBAL, count );
+	}
+
+	/**
+	 * Creates a LogicalMinimum element for a Report Descriptor.
+	 *
+	 * Extent value in logical units. This is the minimum value that a variable
+	 * or array item will report. For example, a mouse reporting x position
+	 * values from 0 to 128 would have a Logical Minimum of 0 and a Logical
+	 * Maximum of 128.
+	 *
+	 * @param units minimum value in logical units
+	 */
+	static constexpr HIDReportShortDescriptorElement LogicalMinimum(
+	    uint32_t units )
+	{
+		return HIDReportShortDescriptorElement(
+		    HidReportTag::GLOBAL_LOGICAL_MINIMUM, HidReportType::GLOBAL,
+		    units );
+	}
+
+	/**
+	 * Creates a LogicalMaximum element for a Report Descriptor.
+	 *
+	 * Extent value in logical units. This is the maximum value that a variable
+	 * or array item will report.
+	 *
+	 * @param units maximum value in logical units
+	 */
+	static constexpr HIDReportShortDescriptorElement LogicalMaximum(
+	    uint32_t units )
+	{
+		return HIDReportShortDescriptorElement(
+		    HidReportTag::GLOBAL_LOGICAL_MAXIMUM, HidReportType::GLOBAL,
+		    units );
+	}
+
+	/**
+	 * Creates a PhysicalMinimum element for a Report Descriptor.
+	 *
+	 * Minimum value for the physical extent of a variable item.
+	 *
+	 * @param units minimum value in Physical units
+	 */
+	static constexpr HIDReportShortDescriptorElement PhysicalMinimum(
+	    uint32_t units )
+	{
+		return HIDReportShortDescriptorElement(
+		    HidReportTag::GLOBAL_PHYSICAL_MINIMUM, HidReportType::GLOBAL,
+		    units );
+	}
+
+	/**
+	 * Creates a PhysicalMaximum element for a Report Descriptor.
+	 *
+	 * Maximum value for the physical extent of a variable item.
+	 *
+	 * @param units maximum value in Physical units
+	 */
+	static constexpr HIDReportShortDescriptorElement PhysicalMaximum(
+	    uint32_t units )
+	{
+		return HIDReportShortDescriptorElement(
+		    HidReportTag::GLOBAL_PHYSICAL_MAXIMUM, HidReportType::GLOBAL,
+		    units );
+	}
+
+	/**
+	 * Creates a UsageMinimum element for a Report Descriptor.
+	 *
+	 * Defines the starting usage associated with an array or bitmap. Allows
+	 * every element to be assigned a unique Usage ID.
+	 *
+	 * @param usage starting usage
+	 */
+	static constexpr HIDReportShortDescriptorElement UsageMinimum(
+	    uint32_t usage )
+	{
+		return HIDReportShortDescriptorElement(
+		    HidReportTag::LOCAL_USAGE_MINIMUM, HidReportType::LOCAL, usage );
+	}
+
+	/**
+	 * Creates a UsageMaximum element for a Report Descriptor.
+	 *
+	 * Defines the ending usage associated with an array or bitmap. Allows
+	 * every element to be assigned a unique Usage ID.
+	 *
+	 * @param usage ending usage
+	 */
+	static constexpr HIDReportShortDescriptorElement UsageMaximum(
+	    uint32_t usage )
+	{
+		return HIDReportShortDescriptorElement(
+		    HidReportTag::LOCAL_USAGE_MAXIMUM, HidReportType::LOCAL, usage );
+	}
+};
 
 /**
  * A HID Input Report.
