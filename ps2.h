@@ -11,12 +11,12 @@
  * This driver is for generic PS/2 devices and doesn't understand the
  * difference between a keyboard and a mouse.
  *
- * This project is also licensed under the GPL (v3 or later version, at your choice).
- * See the [LICENCE](./LICENCE) file.
+ * This project is also licensed under the GPL (v3 or later version, at your
+ * choice). See the [LICENCE](./LICENCE) file.
  */
 
-#include <string.h>
 #include <assert.h>
+#include <string.h>
 
 #include "DigitalPin.h"
 #include "RingBuf.h"
@@ -30,7 +30,8 @@ enum class Ps2State
 	Disabled
 };
 
-enum class Ps2WriteState {
+enum class Ps2WriteState
+{
 	HoldingClock,
 	WaitClockLow,
 	WaitClockHigh,
@@ -42,37 +43,39 @@ enum class Ps2WriteState {
 /**
  * Represents a generic PS2 device.
  */
-template<int PIN_CLK, int PIN_DAT>
+template <int PIN_CLK, int PIN_DAT>
 class Ps2
 {
-public:
+   public:
 	/**
 	 * Construct a new Ps2 object.
 	 *
 	 * @param pin_clk the Arduino pin number for the PS/2 clock pin
 	 * @param pin_data the Arduino pin number for the PS/2 data pin
 	 */
-	Ps2() :
-						m_state(Ps2State::Idle),
-						m_write_state(Ps2WriteState::HoldingClock),
-						m_last_clk(true),
-						m_in_buffer(),
-						m_out_buffer(),
-						m_current_word(0),
-						m_current_word_bitmask(1),
-						m_timeout(0)
+	Ps2()
+	    : m_state( Ps2State::Idle ),
+	      m_write_state( Ps2WriteState::HoldingClock ),
+	      m_last_clk( true ),
+	      m_in_buffer(),
+	      m_out_buffer(),
+	      m_current_word( 0 ),
+	      m_current_word_bitmask( 1 ),
+	      m_timeout( 0 )
 	{
 		// Use internal pull-ups
-		pinMode(PIN_CLK, INPUT_PULLUP);
-		pinMode(PIN_DAT, INPUT_PULLUP);
+		pinMode( PIN_CLK, INPUT_PULLUP );
+		pinMode( PIN_DAT, INPUT_PULLUP );
 	}
 
 	/**
-	 * Are we currently talking to the PS/2 device (either reading or writing a word)?
+	 * Are we currently talking to the PS/2 device (either reading or writing a
+	 * word)?
 	 */
 	bool isActive()
 	{
-		return (m_state == Ps2State::ReadingWord) || (m_state == Ps2State::WritingWord);
+		return ( m_state == Ps2State::ReadingWord ) ||
+		       ( m_state == Ps2State::WritingWord );
 	}
 
 	/**
@@ -82,20 +85,20 @@ public:
 	 */
 	void poll()
 	{
-		switch (m_state)
+		switch ( m_state )
 		{
-		case Ps2State::Idle:
-			pollIdle();
-			break;
-		case Ps2State::BufferFull:
-		case Ps2State::Disabled:
-			break;
-		case Ps2State::WritingWord:
-			pollWritingWord();
-			break;
-		case Ps2State::ReadingWord:
-			pollReadingWord();
-			break;
+			case Ps2State::Idle:
+				pollIdle();
+				break;
+			case Ps2State::BufferFull:
+			case Ps2State::Disabled:
+				break;
+			case Ps2State::WritingWord:
+				pollWritingWord();
+				break;
+			case Ps2State::ReadingWord:
+				pollReadingWord();
+				break;
 		}
 	}
 
@@ -107,8 +110,8 @@ public:
 	 */
 	void disable()
 	{
-		pinMode(PIN_CLK, OUTPUT);
-		fastDigitalWrite(PIN_CLK, LOW);
+		pinMode( PIN_CLK, OUTPUT );
+		fastDigitalWrite( PIN_CLK, LOW );
 		m_state = Ps2State::Disabled;
 		m_current_word = 0;
 		m_current_word_bitmask = 1;
@@ -119,8 +122,8 @@ public:
 	 */
 	void renable()
 	{
-		pinMode(PIN_CLK, INPUT_PULLUP);
-		pinMode(PIN_DAT, INPUT_PULLUP);
+		pinMode( PIN_CLK, INPUT_PULLUP );
+		pinMode( PIN_DAT, INPUT_PULLUP );
 		m_state = Ps2State::Idle;
 		m_current_word = 0;
 		m_current_word_bitmask = 1;
@@ -129,22 +132,24 @@ public:
 	/**
 	 * Write data to the PS/2 device.
 	 *
-	 * The data is buffered and will be clocked out in subsequent calls to `poll`.
+	 * The data is buffered and will be clocked out in subsequent calls to
+	 * `poll`.
 	 *
 	 * @param data the bytes to write to the device
 	 * @param data_len the number of bytes pointed to by `data`
 	 *
-	 * @return true if space in internal buffer to accept all the bytes, false if not enough space and write is rejected.
+	 * @return true if space in internal buffer to accept all the bytes, false
+	 * if not enough space and write is rejected.
 	 */
-	bool writeBuffer(const uint8_t *data, size_t data_len)
+	bool writeBuffer( const uint8_t* data, size_t data_len )
 	{
-		if ((data_len + m_out_buffer.size()) > m_out_buffer.maxSize())
+		if ( ( data_len + m_out_buffer.size() ) > m_out_buffer.maxSize() )
 		{
 			return false;
 		}
-		for(size_t i = 0; i < data_len; i++)
+		for ( size_t i = 0; i < data_len; i++ )
 		{
-			m_out_buffer.push(data[i]);
+			m_out_buffer.push( data[i] );
 		}
 	}
 
@@ -153,15 +158,15 @@ public:
 	 */
 	int readBuffer()
 	{
-		if (m_in_buffer.isEmpty())
+		if ( m_in_buffer.isEmpty() )
 		{
 			return -1;
 		}
 		else
 		{
 			uint8_t result;
-			m_in_buffer.pop(result);
-			if (m_state == Ps2State::BufferFull)
+			m_in_buffer.pop( result );
+			if ( m_state == Ps2State::BufferFull )
 			{
 				renable();
 			}
@@ -170,29 +175,29 @@ public:
 	}
 
 #ifndef TEST_MODE_NO_PRIVATE
-private:
+   private:
 #endif
 
 	void pollIdle()
 	{
-		if (!m_out_buffer.isEmpty())
+		if ( !m_out_buffer.isEmpty() )
 		{
 			// We are idle and we have words waiting to clock out
 			m_state = Ps2State::WritingWord;
 			m_write_state = Ps2WriteState::HoldingClock;
 			uint8_t b;
-			m_out_buffer.peek(b);
-			m_current_word = encodeByte(b);
+			m_out_buffer.peek( b );
+			m_current_word = encodeByte( b );
 			// Skip the start bit
 			m_current_word_bitmask = 2;
 			// 1) Bring the Clock line low for at least 100 microseconds
-			fastDigitalWrite(PIN_CLK, LOW);
-			pinMode(PIN_CLK, OUTPUT);
-			setTimeout(150);
+			fastDigitalWrite( PIN_CLK, LOW );
+			pinMode( PIN_CLK, OUTPUT );
+			setTimeout( 150 );
 		}
 
-		bool kb_clk_pin = fastDigitalRead(PIN_CLK);
-		if (kb_clk_pin != m_last_clk)
+		bool kb_clk_pin = fastDigitalRead( PIN_CLK );
+		if ( kb_clk_pin != m_last_clk )
 		{
 			// We have an edge
 			m_current_word_bitmask = 1;
@@ -202,100 +207,115 @@ private:
 
 	void pollWritingWord()
 	{
-		if (hasTimedOut())
+		if ( hasTimedOut() )
 		{
 			// Hmm ... keyboard stopped part way through for 1..2ms?
 			// Give up.
 			renable();
 		}
-		switch (m_write_state) {
-		case Ps2WriteState::HoldingClock:
-			if (hasTimedOut()) {
-				m_write_state = Ps2WriteState::WaitClockLow;
-				// 2) Bring the Data line low.
-				fastDigitalWrite(PIN_DAT, LOW);
-				pinMode(PIN_DAT, OUTPUT);
-				// 3) Release the Clock line.
-				pinMode(PIN_CLK, INPUT_PULLUP);
-			}
-			break;
-		// 4) Wait for the device to bring the clock line low
-		//    (this is when we set the data line).
-		case Ps2WriteState::WaitClockLow:
-			if (fastDigitalRead(PIN_CLK) == LOW) {
-				// Are we done?
-				if (m_current_word_bitmask == PS2_OUTGOING_MASK) {
-					// 9) All data + parity clocked out - time to Release data line
-					pinMode(PIN_DAT, INPUT_PULLUP);
-					m_write_state = Ps2WriteState::WaitDataLow;
-					setTimeout(150);
-				} else {
-					// 5) Set/reset the data pin according to the next bit
-					if (m_current_word & m_current_word_bitmask) {
-						fastDigitalWrite(PIN_DAT, HIGH);
-					} else {
-						fastDigitalWrite(PIN_DAT, LOW);
-					}
-					m_current_word_bitmask <<= 1;
-					m_write_state = Ps2WriteState::WaitClockHigh;
-					setTimeout(150);
+		switch ( m_write_state )
+		{
+			case Ps2WriteState::HoldingClock:
+				if ( hasTimedOut() )
+				{
+					m_write_state = Ps2WriteState::WaitClockLow;
+					// 2) Bring the Data line low.
+					fastDigitalWrite( PIN_DAT, LOW );
+					pinMode( PIN_DAT, OUTPUT );
+					// 3) Release the Clock line.
+					pinMode( PIN_CLK, INPUT_PULLUP );
 				}
-			}
-			break;
-		// 6) Wait for device to bring the clock line high
-		//    (this is when the device grabs the data bit).
-		case Ps2WriteState::WaitClockHigh:
-			if (fastDigitalRead(PIN_CLK) == HIGH) {
-				m_write_state = Ps2WriteState::WaitClockLow;
-				setTimeout(150);
-			}
-			break;
-		// 10) Wait for the device to bring data low (for the ACK)
-		case Ps2WriteState::WaitDataLow:
-			if (fastDigitalRead(PIN_DAT) == LOW) {
-				m_write_state = Ps2WriteState::WaitFinalClockLow;
-				setTimeout(150);
-			}
-			break;
-		// 11) Wait for the device to bring clock low
-		case Ps2WriteState::WaitFinalClockLow:
-			if (fastDigitalRead(PIN_CLK) == LOW) {
-				m_write_state = Ps2WriteState::WaitForRelease;
-				setTimeout(150);
-			}
-			break;
-		case Ps2WriteState::WaitForRelease:
-			if ( (fastDigitalRead(PIN_CLK) == HIGH) && (fastDigitalRead(PIN_DAT) == HIGH) ) {
-				// All done, so remove from buffer
-				uint8_t b;
-				m_out_buffer.pop(b);
-				renable();
-			}
-			break;
+				break;
+			// 4) Wait for the device to bring the clock line low
+			//    (this is when we set the data line).
+			case Ps2WriteState::WaitClockLow:
+				if ( fastDigitalRead( PIN_CLK ) == LOW )
+				{
+					// Are we done?
+					if ( m_current_word_bitmask == PS2_OUTGOING_MASK )
+					{
+						// 9) All data + parity clocked out - time to Release
+						// data line
+						pinMode( PIN_DAT, INPUT_PULLUP );
+						m_write_state = Ps2WriteState::WaitDataLow;
+						setTimeout( 150 );
+					}
+					else
+					{
+						// 5) Set/reset the data pin according to the next bit
+						if ( m_current_word & m_current_word_bitmask )
+						{
+							fastDigitalWrite( PIN_DAT, HIGH );
+						}
+						else
+						{
+							fastDigitalWrite( PIN_DAT, LOW );
+						}
+						m_current_word_bitmask <<= 1;
+						m_write_state = Ps2WriteState::WaitClockHigh;
+						setTimeout( 150 );
+					}
+				}
+				break;
+			// 6) Wait for device to bring the clock line high
+			//    (this is when the device grabs the data bit).
+			case Ps2WriteState::WaitClockHigh:
+				if ( fastDigitalRead( PIN_CLK ) == HIGH )
+				{
+					m_write_state = Ps2WriteState::WaitClockLow;
+					setTimeout( 150 );
+				}
+				break;
+			// 10) Wait for the device to bring data low (for the ACK)
+			case Ps2WriteState::WaitDataLow:
+				if ( fastDigitalRead( PIN_DAT ) == LOW )
+				{
+					m_write_state = Ps2WriteState::WaitFinalClockLow;
+					setTimeout( 150 );
+				}
+				break;
+			// 11) Wait for the device to bring clock low
+			case Ps2WriteState::WaitFinalClockLow:
+				if ( fastDigitalRead( PIN_CLK ) == LOW )
+				{
+					m_write_state = Ps2WriteState::WaitForRelease;
+					setTimeout( 150 );
+				}
+				break;
+			case Ps2WriteState::WaitForRelease:
+				if ( ( fastDigitalRead( PIN_CLK ) == HIGH ) &&
+				     ( fastDigitalRead( PIN_DAT ) == HIGH ) )
+				{
+					// All done, so remove from buffer
+					uint8_t b;
+					m_out_buffer.pop( b );
+					renable();
+				}
+				break;
 		}
 	}
 
 	void pollReadingWord()
 	{
-		bool kb_clk_pin = fastDigitalRead(PIN_CLK);
-		if (kb_clk_pin != m_last_clk)
+		bool kb_clk_pin = fastDigitalRead( PIN_CLK );
+		if ( kb_clk_pin != m_last_clk )
 		{
 			// Edge
-			if (!kb_clk_pin)
+			if ( !kb_clk_pin )
 			{
 				// Falling edge
-				if (fastDigitalRead(PIN_DAT))
+				if ( fastDigitalRead( PIN_DAT ) )
 				{
 					m_current_word |= m_current_word_bitmask;
 				}
 				m_current_word_bitmask <<= 1;
-				if (m_current_word_bitmask == PS2_INCOMING_MASK)
+				if ( m_current_word_bitmask == PS2_INCOMING_MASK )
 				{
-					int result = validateWord(m_current_word);
-					if (result >= 0)
+					int result = validateWord( m_current_word );
+					if ( result >= 0 )
 					{
-						m_in_buffer.push(result);
-						if (m_in_buffer.isFull())
+						m_in_buffer.push( result );
+						if ( m_in_buffer.isFull() )
 						{
 							disable();
 							m_state = Ps2State::BufferFull;
@@ -304,12 +324,12 @@ private:
 					}
 				}
 			}
-			setTimeout(250);
+			setTimeout( 250 );
 			m_last_clk = kb_clk_pin;
 		}
 		else
 		{
-			if (hasTimedOut())
+			if ( hasTimedOut() )
 			{
 				// Hmm ... keyboard stopped part way through for 1..2ms?
 				// Give up.
@@ -323,37 +343,45 @@ private:
 	/**
 	 * Waits for num_ms to 1+num_micros microseconds.
 	 */
-	void setTimeout(uint16_t num_micros) {
-		assert(num_micros < 32000);
-		m_timeout = ((uint16_t) (micros() & 0xFFFF)) + num_micros;
+	void setTimeout( uint16_t num_micros )
+	{
+		assert( num_micros < 32000 );
+		m_timeout = ( ( uint16_t )( micros() & 0xFFFF ) ) + num_micros;
 	}
 
 	/**
 	 * Has the timeout expired?
 	 */
-	bool hasTimedOut() {
+	bool hasTimedOut()
+	{
 		uint16_t now = micros() & 0xFFFF;
 		int16_t delta = m_timeout - now;
-		if (delta <= 0) {
+		if ( delta <= 0 )
+		{
 			m_timeout = 0;
 			return true;
-		} else {
+		}
+		else
+		{
 			return false;
 		}
 	}
 
-	static uint16_t encodeByte(uint8_t byte) {
+	static uint16_t encodeByte( uint8_t byte )
+	{
 		uint16_t result = 0;
 		bool parity = true;
-		for(size_t i = 0; i < 8; i++) {
-			if (bitRead(byte, i)) {
+		for ( size_t i = 0; i < 8; i++ )
+		{
+			if ( bitRead( byte, i ) )
+			{
 				parity = !parity;
 			}
 		}
 		// Data byte (first bit is start bit, which is zero)
-		result |= ((uint16_t) byte) << 1;
+		result |= ( (uint16_t)byte ) << 1;
 		// Parity bit
-		result |= (parity ? 1 : 0) << 9;
+		result |= ( parity ? 1 : 0 ) << 9;
 		// Stop bit
 		result |= 1 << 10;
 		return result;
@@ -362,22 +390,22 @@ private:
 	/**
 	 * Check an 11-bit word from the device.
 	 */
-	static int validateWord(uint16_t ps2_bits)
+	static int validateWord( uint16_t ps2_bits )
 	{
-		bool parity_bit = bitRead(ps2_bits, PARITY_BIT) != 0;
-		bool start_bit = bitRead(ps2_bits, START_BIT) != 0;
-		bool stop_bit = bitRead(ps2_bits, STOP_BIT) != 0;
+		bool parity_bit = bitRead( ps2_bits, PARITY_BIT ) != 0;
+		bool start_bit = bitRead( ps2_bits, START_BIT ) != 0;
+		bool stop_bit = bitRead( ps2_bits, STOP_BIT ) != 0;
 		bool parity = parity_bit;
-		for (uint8_t i = FIRST_DATA_BIT; i <= LAST_DATA_BIT; i++)
+		for ( uint8_t i = FIRST_DATA_BIT; i <= LAST_DATA_BIT; i++ )
 		{
-			if (bitRead(ps2_bits, i))
+			if ( bitRead( ps2_bits, i ) )
 			{
 				parity = !parity;
 			}
 		}
-		if (!start_bit && parity && stop_bit)
+		if ( !start_bit && parity && stop_bit )
 		{
-			return (ps2_bits >> 1) & 0x00FF;
+			return ( ps2_bits >> 1 ) & 0x00FF;
 		}
 		else
 		{
