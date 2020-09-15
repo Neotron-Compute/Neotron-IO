@@ -346,23 +346,23 @@ static void bufferPrintln( const String& s )
 }
 
 /**
- * Print a 16-bit word as four hex nibbles.
+ * Print a 16-bit word as four hex nibbles, big-endian.
  */
 static void bufferPrintHex( uint16_t value )
 {
-	gSerialBuffer.push( wordToHex( value, 0 ) );
-	gSerialBuffer.push( wordToHex( value, 1 ) );
-	gSerialBuffer.push( wordToHex( value, 2 ) );
 	gSerialBuffer.push( wordToHex( value, 3 ) );
+	gSerialBuffer.push( wordToHex( value, 2 ) );
+	gSerialBuffer.push( wordToHex( value, 1 ) );
+	gSerialBuffer.push( wordToHex( value, 0 ) );
 }
 
 /**
- * Print an 8-bit byte as two hex nibbles.
+ * Print an 8-bit byte as two hex nibbles, big-endian.
  */
 static void bufferPrintHex2( uint8_t value )
 {
-	gSerialBuffer.push( wordToHex( value, 0 ) );
 	gSerialBuffer.push( wordToHex( value, 1 ) );
+	gSerialBuffer.push( wordToHex( value, 0 ) );
 }
 
 /**
@@ -371,7 +371,7 @@ static void bufferPrintHex2( uint8_t value )
 static char wordToHex( uint16_t value, uint8_t nibble_idx )
 {
 	static const char hexNibbles[] = { '0', '1', '2', '3', '4', '5', '6', '7',
-	                                   '8', '9', 'a', 'b', 'c', 'd', 'e', 'f' };
-	uint8_t nibble = ( value >> ( 4 * ( 3 - nibble_idx ) ) ) & 0x000F;
+	                                   '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' };
+	uint8_t nibble = ( value >> ( 4 * nibble_idx ) ) & 0x000F;
 	return hexNibbles[nibble];
 }
