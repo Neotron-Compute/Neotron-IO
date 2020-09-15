@@ -32,7 +32,7 @@ typedef bool (*test_fn_t)(const char **sz_name);
 // Check PS/2 object times out
 DEFINE_TEST(ps2_timeout)
 {
-	Ps2 ps2(0, 1);
+	Ps2<0, 1> ps2;
 	ps2.m_state = Ps2State::ReadingWord;
 	unsigned long target;
 	// Get a value that doesn't wrap
@@ -53,7 +53,7 @@ DEFINE_TEST(ps2_timeout)
 DEFINE_TEST(ps2_collect_bits)
 {
 	// 0 is clk, 1 = data
-	Ps2 ps2(0, 1);
+	Ps2<0, 1> ps2;
 	uint16_t test_word = (0x03 << 9) | (0xAA << 1);
 	for (int i = 0; i < 11; i++)
 	{
@@ -82,7 +82,7 @@ DEFINE_TEST(ps2_validate_words)
 	bool pass = true;
 	for (int i = 0; i < 3; i++)
 	{
-		int result = Ps2::validateWord(inputs[i]);
+		int result = Ps2<0, 1>::validateWord(inputs[i]);
 		pass &= (result == outputs[i]);
 	}
 	return pass;
@@ -93,8 +93,8 @@ DEFINE_TEST(ps2_encode_bytes)
 	bool pass = true;
 	for(int i = 0; i < 256; i++)
 	{
-		uint16_t word = Ps2::encodeByte((uint8_t) i);
-		uint8_t output = Ps2::validateWord(word);
+		uint16_t word = Ps2<0, 1>::encodeByte((uint8_t) i);
+		uint8_t output = Ps2<0, 1>::validateWord(word);
 		if (i != output) {
 			printf("%02x != %02x (%04x)\n", i, output, word);
 			pass = false;

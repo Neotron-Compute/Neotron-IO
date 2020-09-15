@@ -5,6 +5,10 @@
 #define HIGH 1
 #define LOW 0
 
+#define fastDigitalWrite digitalWrite
+#define fastDigitalRead digitalRead
+#define fastPinMode pinMode
+
 int bitRead(int word, int bit);
 void digitalWrite(int pin, bool level);
 void pinMode(int pin, int mode);

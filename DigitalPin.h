@@ -23,8 +23,12 @@
  */
 #ifndef DigitalPin_h
 #define DigitalPin_h
+
+#ifdef __AVR_ARCH__
 #include <avr/io.h>
 #include <util/atomic.h>
+#endif
+
 //------------------------------------------------------------------------------
 /** DigitalPin version YYYYMMDD */
 #define DIGITAL_PIN_VERSION 20120804
@@ -302,8 +306,14 @@ static const pin_map_t pinMap[] = {
 };
 //------------------------------------------------------------------------------
 #else  // CPU type
-#error unknown CPU type
+#ifdef ___AVR_ARCH__
+#warning Falling back to slow functions
+#endif
+#define SLOW_IO_FUNCTIONS
 #endif  // CPU type
+
+#ifndef SLOW_IO_FUNCTIONS
+
 /** count of pins */
 static const uint8_t digitalPinCount = sizeof(pinMap)/sizeof(pin_map_t);
 //==============================================================================
@@ -472,4 +482,7 @@ class DigitalPin {
     fastDigitalWrite(PinNumber, value);
   }
 };
+
+#endif
+
 #endif  // DigitalPin_h
