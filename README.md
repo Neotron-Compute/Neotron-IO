@@ -56,7 +56,7 @@ The `B` indicates that the device has booted. The following three hex digits are
 #### Joystick 1 Changed
 
 ```
-Sxxxx
+sxxxx
 ```
 
 Indicates Joystick 1 has changed state. The 16-bit hex word `xxxx` indicates the state of the (up to) 16 supported pins on the Joystick interface.
@@ -87,26 +87,26 @@ For example, a value of `0x0042` means:
 #### Joystick 2 Changed
 
 ```
-Txxxx
+txxxx
 ```
 
 Indicates Joystick 2 has changed state. The 16-bit hex word `xxxx` indicates the state of the (up to) 16 supported pins on the Joystick interface. See the *Joystick 1 Changed* indication for more details.
 
-#### Keyboard Byte Available
+#### Keyboard Byte Received
 
 ```
-Kxx
+kxx
 ```
 
 Indicates that the Keyboard has delivered a byte over the keyboard PS/2 interface. The hex byte `xx` is the byte that was received.
 
 The PS/2 Keyboard protocol is documented at http://www-ug.eecg.toronto.edu/msl/nios_devices/datasheets/PS2%20Keyboard%20Protocol.htm.
 
-#### Mouse Byte Available
+#### Mouse Byte Received
 
 
 ```
-Mxx
+mxx
 ```
 
 Indicates that the Mouse has delivered a byte over the mouse PS/2 interface. The hex byte `xx` is the byte that was received.

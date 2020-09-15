@@ -115,7 +115,7 @@ void setup()
 	// clock
 	Serial.begin( 9600 );
 	// Sign-on banner
-	Serial.print( "B020\n" );
+	Serial.print( "b020\n" );
 
 	if ( gJs1.scan() )
 	{
@@ -204,14 +204,14 @@ static void processInput( char inputChar )
 			{
 				if ( inputTarget == 'K' )
 				{
-					bufferPrint( "k" );
+					bufferPrint( "K" );
 					bufferPrintHex2( inputByte );
 					bufferPrintln();
 					gKeyboard.writeBuffer( &inputByte, 1 );
 				}
 				else if ( inputTarget == 'M' )
 				{
-					bufferPrint( "m" );
+					bufferPrint( "M" );
 					bufferPrintHex2( inputByte );
 					bufferPrintln();
 					gKeyboard.writeBuffer( &inputByte, 1 );
@@ -251,7 +251,7 @@ void loop()
 	int keyboardByte = gKeyboard.readBuffer();
 	if ( keyboardByte >= 0 )
 	{
-		bufferPrint( "K" );
+		bufferPrint( "k" );
 		bufferPrintHex2( keyboardByte );
 		bufferPrintln();
 	}
@@ -261,7 +261,7 @@ void loop()
 	int mouseByte = gMouse.readBuffer();
 	if ( mouseByte >= 0 )
 	{
-		bufferPrint( "M" );
+		bufferPrint( "m" );
 		bufferPrintHex2( mouseByte );
 		bufferPrintln();
 	}
@@ -270,7 +270,7 @@ void loop()
 	if ( gJs1.scan() )
 	{
 		js1_bits = gJs1.read();
-		bufferPrint( "S" );
+		bufferPrint( "s" );
 		bufferPrintHex( js1_bits.value() );
 		bufferPrintln();
 	}
@@ -279,7 +279,7 @@ void loop()
 	if ( gJs2.scan() )
 	{
 		js2_bits = gJs2.read();
-		bufferPrint( "T" );
+		bufferPrint( "t" );
 		bufferPrintHex( js2_bits.value() );
 		bufferPrintln();
 	}
