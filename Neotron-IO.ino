@@ -223,12 +223,14 @@ void loop()
 	JoystickResult js1_bits;
 	JoystickResult js2_bits;
 
+	// Process incoming characters from the host
 	if ( Serial.available() )
 	{
 		char inputChar = Serial.read();
 		processInput( inputChar );
 	}
 
+	// Process outbound characters for the host
 	if ( Serial.availableForWrite() )
 	{
 		char data;
@@ -238,6 +240,7 @@ void loop()
 		}
 	}
 
+	// Process the keyboard
 	gKeyboard.poll();
 	int keyboardByte = gKeyboard.readBuffer();
 	if ( keyboardByte >= 0 )
@@ -247,8 +250,9 @@ void loop()
 		bufferPrintln();
 	}
 
+	// Process the mouse
 	gMouse.poll();
-	int mouseByte = gKeyboard.readBuffer();
+	int mouseByte = gMouse.readBuffer();
 	if ( mouseByte >= 0 )
 	{
 		bufferPrint( "M" );
@@ -256,6 +260,7 @@ void loop()
 		bufferPrintln();
 	}
 
+	// Process Joystick 1
 	if ( gJs1.scan() )
 	{
 		js1_bits = gJs1.read();
@@ -264,6 +269,7 @@ void loop()
 		bufferPrintln();
 	}
 
+	// Process Joystick 2
 	if ( gJs2.scan() )
 	{
 		js2_bits = gJs2.read();
