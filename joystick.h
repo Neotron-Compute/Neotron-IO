@@ -14,6 +14,8 @@
  * See the [LICENCE](./LICENCE) file.
  */
 
+#include "DigitalPin.h"
+
 /**
  * Represents a reading from a Joystick port.
  */
@@ -145,35 +147,29 @@ private:
 /**
  * Represents a Joystick port that you can read.
  */
+template<
+	int PIN_START_C,
+	int PIN_A_B,
+	int PIN_DOWN,
+	int PIN_UP,
+	int PIN_RIGHT,
+	int PIN_LEFT,
+	int PIN_SELECT
+>
 class Joystick {
 public:
-	Joystick(
-		int pin_up,
-		int pin_down,
-		int pin_gnd_left,
-		int pin_gnd_right,
-		int pin_a_b,
-		int pin_start_c,
-		int pin_select
-	):
-		m_pin_up(pin_up),
-		m_pin_down(pin_down),
-		m_pin_gnd_left(pin_gnd_left),
-		m_pin_gnd_right(pin_gnd_right),
-		m_pin_a_b(pin_a_b),
-		m_pin_start_c(pin_start_c),
-		m_pin_select(pin_select),
+	Joystick():
 		m_pinmap_old(0),
 		m_pinmap(0)
 	{
-		pinMode(m_pin_up, INPUT_PULLUP);
-		pinMode(m_pin_down, INPUT_PULLUP);
-		pinMode(m_pin_gnd_left, INPUT_PULLUP);
-		pinMode(m_pin_gnd_right, INPUT_PULLUP);
-		pinMode(m_pin_a_b, INPUT_PULLUP);
-		pinMode(m_pin_start_c, INPUT_PULLUP);
-		pinMode(m_pin_select, OUTPUT);
-		digitalWrite(m_pin_select, 0);
+		pinMode(PIN_UP, INPUT_PULLUP);
+		pinMode(PIN_DOWN, INPUT_PULLUP);
+		pinMode(PIN_LEFT, INPUT_PULLUP);
+		pinMode(PIN_RIGHT, INPUT_PULLUP);
+		pinMode(PIN_A_B, INPUT_PULLUP);
+		pinMode(PIN_START_C, INPUT_PULLUP);
+		pinMode(PIN_SELECT, OUTPUT);
+		fastDigitalWrite(PIN_SELECT, 0);
 	}
 
 	/// Get the current joystick state
@@ -197,46 +193,46 @@ public:
 	bool scan() {
 		JoystickResult new_pinmap;
 		// Pins are active low
-		if (digitalRead(m_pin_up) == 0) {
+		if (fastDigitalRead(PIN_UP) == 0) {
 			new_pinmap.set_up_pressed();
 		};
-		if (digitalRead(m_pin_down) == 0) {
+		if (fastDigitalRead(PIN_DOWN) == 0) {
 			new_pinmap.set_down_pressed();
 		};
-		if (digitalRead(m_pin_a_b) == 0) {
+		if (fastDigitalRead(PIN_A_B) == 0) {
 			new_pinmap.set_a_pressed();
 		};
-		if (digitalRead(m_pin_start_c) == 0) {
+		if (fastDigitalRead(PIN_START_C) == 0) {
 			new_pinmap.set_start_pressed();
 		};
-		if(digitalRead(m_pin_gnd_left) == 0) {
+		if(fastDigitalRead(PIN_LEFT) == 0) {
 			new_pinmap.set_left_pressed();
 		};
-		if(digitalRead(m_pin_gnd_right) == 0) {
+		if(fastDigitalRead(PIN_RIGHT) == 0) {
 			new_pinmap.set_right_pressed();
 		};
 		if ( new_pinmap.is_left_right_pressed() )
 		{
 			// Impossible for left and right to be active at the same time, so
 			// we must have a SEGA MegaDrive pad.
-			digitalWrite(m_pin_select, 1);
+			fastDigitalWrite(PIN_SELECT, 1);
 			// Clear the left/right pins as they aren't actually set
 			new_pinmap.clear_left_right_pressed();
 			// Read the alternative pins
-			if (digitalRead(m_pin_gnd_left) == 0) {
+			if (fastDigitalRead(PIN_LEFT) == 0) {
 				new_pinmap.set_left_pressed();
 			}
-			if (digitalRead(m_pin_gnd_right) == 0) {
+			if (fastDigitalRead(PIN_RIGHT) == 0) {
 				new_pinmap.set_right_pressed();
 			}
-			if (digitalRead(m_pin_a_b) == 0) {
+			if (fastDigitalRead(PIN_A_B) == 0) {
 				new_pinmap.set_b_pressed();
 			}
-			if (digitalRead(m_pin_start_c) == 0) {
+			if (fastDigitalRead(PIN_START_C) == 0) {
 				new_pinmap.set_c_pressed();
 			}
 			// Turn select off again
-			digitalWrite(m_pin_select, 0);
+			fastDigitalWrite(PIN_SELECT, 0);
 		}
 		m_pinmap = new_pinmap;
 		return has_new();
@@ -248,12 +244,4 @@ private:
 
 	JoystickResult m_pinmap;
 	JoystickResult m_pinmap_old;
-
-	const int m_pin_start_c;
-	const int m_pin_a_b;
-	const int m_pin_down;
-	const int m_pin_up;
-	const int m_pin_gnd_right;
-	const int m_pin_gnd_left;
-	const int m_pin_select;
 };

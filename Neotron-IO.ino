@@ -7,6 +7,8 @@
  * See the [LICENCE](./LICENCE) file.
  */
 
+#define REAL_ARDUINO_UNO
+
 //
 // Includes
 //
@@ -20,34 +22,40 @@
 // Constants
 //
 
-const int JS2_PIN_UP = 21;
-const int JS2_PIN_AB = 20;
-const int JS2_PIN_DOWN = 13;
-const int JS2_PIN_GND_LEFT = 12;
-const int JS2_PIN_GND_RIGHT = 11;
-const int JS2_PIN_START_C = 10;
-
-const int CALIBRATION_ON = 8;
-const int CALIBRATION_OUT = 9;
-
-const int JS1_PIN_UP = 7;
-const int JS1_PIN_AB = 6;
-const int JS1_PIN_DOWN = 5;
-const int JS1_PIN_GND_LEFT = 4;
-const int JS1_PIN_GND_RIGHT = 3;
-const int JS1_PIN_START_C = 2;
 // Pins D0 and D1 are for the UART
+const int JS1_PIN_START_C = 2;
+const int JS1_PIN_GND_RIGHT = 3;
+const int JS1_PIN_GND_LEFT = 4;
+const int JS1_PIN_DOWN = 5;
+const int JS1_PIN_AB = 6;
+const int JS1_PIN_UP = 7;
 
-const int JS1_PIN_SELECT = A5;
-const int JS2_PIN_SELECT = A4;
-const int MS_DAT = A3;
-const int MS_CLK = A2;
-const int KB_DAT = A1;
+#ifdef REAL_ARDUINO_UNO
+const int JS2_PIN_AB = 8;
+const int JS2_PIN_UP = 9;
+#elif NEOTRON_32
+const int JS2_PIN_AB = 20;
+const int JS2_PIN_UP = 21;
+#else
+#error Please select a supported board
+#endif
+const int JS2_PIN_START_C = 10;
+const int JS2_PIN_GND_RIGHT = 11;
+const int JS2_PIN_GND_LEFT = 12;
+const int JS2_PIN_DOWN = 13;
+
 const int KB_CLK = A0;
+const int KB_DAT = A1;
+const int MS_CLK = A2;
+const int MS_DAT = A3;
+const int JS2_PIN_SELECT = A4;
+const int JS1_PIN_SELECT = A5;
 
 const uint8_t EEPROM_MAGIC_BYTE = 0xE0;
 const int EEPROM_ADDR_MAGIC = 0;
 const int EEPROM_ADDR_OSCCAL = 1;
+
+const int CALIBRATION_OUT = MS_DAT;
 
 const uint16_t DEBOUNCE_LOOPS = 5;
 
@@ -57,10 +65,10 @@ const size_t MAX_INPUT_BUFFER = 16;
 // Variables
 //
 
-static Joystick gJs1(JS1_PIN_UP, JS1_PIN_DOWN, JS1_PIN_GND_LEFT, JS1_PIN_GND_RIGHT, JS1_PIN_AB, JS1_PIN_START_C, JS1_PIN_SELECT);
-static Joystick gJs2(JS2_PIN_UP, JS2_PIN_DOWN, JS2_PIN_GND_LEFT, JS2_PIN_GND_RIGHT, JS2_PIN_AB, JS2_PIN_START_C, JS2_PIN_SELECT);
-static Ps2 gKeyboard(KB_CLK, KB_DAT);
-static Ps2 gMouse(MS_CLK, MS_DAT);
+static Joystick<JS1_PIN_UP, JS1_PIN_DOWN, JS1_PIN_GND_LEFT, JS1_PIN_GND_RIGHT, JS1_PIN_AB, JS1_PIN_START_C, JS1_PIN_SELECT> gJs1;
+static Joystick<JS2_PIN_UP, JS2_PIN_DOWN, JS2_PIN_GND_LEFT, JS2_PIN_GND_RIGHT, JS2_PIN_AB, JS2_PIN_START_C, JS2_PIN_SELECT> gJs2;
+static Ps2<KB_CLK, KB_DAT> gKeyboard;
+static Ps2<MS_CLK, MS_DAT> gMouse;
 static RingBuf<char, 256> gSerialBuffer;
 static bool gCalibrationMode = 0;
 
@@ -93,10 +101,13 @@ void setup()
 	Serial.begin(9600);
 	// Sign-on banner
 	Serial.print("B020\n");
-	pinMode(CALIBRATION_ON, INPUT_PULLUP);
-	pinMode(CALIBRATION_OUT, OUTPUT);
-	// Pull this pin low on reset to enter calibration mode
-	gCalibrationMode = (digitalRead(CALIBRATION_ON) == 0);
+
+	if (gJs1.scan())
+	{
+		JoystickResult test_for_cal_mode = gJs1.read();
+		// Press up and down simultaneously on start-up to enter cal-mode
+		gCalibrationMode = test_for_cal_mode.is_up_pressed() && test_for_cal_mode.is_down_pressed();
+	}
 	if (gCalibrationMode)
 	{
 		// The frequency of this output should be 8 MHz / (256 * 64 * 2), or
@@ -134,7 +145,7 @@ static void processInput(char inputChar) {
 			inputByte = (10 + inputChar - 'A') << 4;
 			inputState = InputState::WantLoNibble;
 		} else if ((inputChar >= 'a') && (inputChar <= 'f')) {
-			inputByte = (10 + inputChar - 'a') << 4;				
+			inputByte = (10 + inputChar - 'a') << 4;
 			inputState = InputState::WantLoNibble;
 		} else {
 			inputState = InputState::WantCommand;
@@ -148,7 +159,7 @@ static void processInput(char inputChar) {
 			inputByte |= (10 + inputChar - 'A');
 			inputState = InputState::WantNewline;
 		} else if ((inputChar >= 'a') && (inputChar <= 'f')) {
-			inputByte |= (10 + inputChar - 'a');				
+			inputByte |= (10 + inputChar - 'a');
 			inputState = InputState::WantNewline;
 		} else {
 			inputState = InputState::WantCommand;
@@ -187,7 +198,7 @@ void loop()
 
 	gKeyboard.poll();
 	int keyboardByte = gKeyboard.readBuffer();
-	if (keyboardByte > 0) {
+	if (keyboardByte >= 0) {
 		bufferPrint("K");
 		bufferPrintHex2(keyboardByte);
 		bufferPrintln();
@@ -195,7 +206,7 @@ void loop()
 
 	gMouse.poll();
 	int mouseByte = gKeyboard.readBuffer();
-	if (mouseByte > 0) {
+	if (mouseByte >= 0) {
 		bufferPrint("M");
 		bufferPrintHex2(mouseByte);
 		bufferPrintln();
@@ -204,7 +215,7 @@ void loop()
 	if (gJs1.scan())
 	{
 		js1_bits = gJs1.read();
-		bufferPrint("J");
+		bufferPrint("S");
 		bufferPrintHex(js1_bits.value());
 		bufferPrintln();
 	}
@@ -212,7 +223,7 @@ void loop()
 	if (gJs2.scan())
 	{
 		js2_bits = gJs2.read();
-		bufferPrint("K");
+		bufferPrint("T");
 		bufferPrintHex(js2_bits.value());
 		bufferPrintln();
 	}
@@ -311,5 +322,5 @@ static void bufferPrintHex2(uint8_t value) {
 static char wordToHex(uint16_t value, uint8_t nibble_idx) {
 	static const char hexNibbles[] = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f' };
 	uint8_t nibble = (value >> (4 * (3 - nibble_idx))) & 0x000F;
-	gSerialBuffer.push(hexNibbles[nibble]);
+	return hexNibbles[nibble];
 }

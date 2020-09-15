@@ -18,6 +18,7 @@
 #include <string.h>
 #include <assert.h>
 
+#include "DigitalPin.h"
 #include "RingBuf.h"
 
 enum class Ps2State
@@ -41,19 +42,17 @@ enum class Ps2WriteState {
 /**
  * Represents a generic PS2 device.
  */
+template<int PIN_CLK, int PIN_DAT>
 class Ps2
 {
 public:
 	/**
 	 * Construct a new Ps2 object.
-	 * 
+	 *
 	 * @param pin_clk the Arduino pin number for the PS/2 clock pin
 	 * @param pin_data the Arduino pin number for the PS/2 data pin
 	 */
-	Ps2(
-		int pin_clk,
-		int pin_data) : m_pin_clk(pin_clk),
-						m_pin_data(pin_data),
+	Ps2() :
 						m_state(Ps2State::Idle),
 						m_write_state(Ps2WriteState::HoldingClock),
 						m_last_clk(true),
@@ -64,8 +63,8 @@ public:
 						m_timeout(0)
 	{
 		// Use internal pull-ups
-		pinMode(m_pin_clk, INPUT_PULLUP);
-		pinMode(m_pin_data, INPUT_PULLUP);
+		pinMode(PIN_CLK, INPUT_PULLUP);
+		pinMode(PIN_DAT, INPUT_PULLUP);
 	}
 
 	/**
@@ -78,7 +77,7 @@ public:
 
 	/**
 	 * Checks the clock pin and reads a bit as required.
-	 * 
+	 *
 	 * You must call this often to avoid missing clock pulse edges.
 	 */
 	void poll()
@@ -108,8 +107,8 @@ public:
 	 */
 	void disable()
 	{
-		pinMode(m_pin_clk, OUTPUT);
-		digitalWrite(m_pin_clk, LOW);
+		pinMode(PIN_CLK, OUTPUT);
+		fastDigitalWrite(PIN_CLK, LOW);
 		m_state = Ps2State::Disabled;
 		m_current_word = 0;
 		m_current_word_bitmask = 1;
@@ -120,8 +119,8 @@ public:
 	 */
 	void renable()
 	{
-		pinMode(m_pin_clk, INPUT_PULLUP);
-		pinMode(m_pin_data, INPUT_PULLUP);
+		pinMode(PIN_CLK, INPUT_PULLUP);
+		pinMode(PIN_DAT, INPUT_PULLUP);
 		m_state = Ps2State::Idle;
 		m_current_word = 0;
 		m_current_word_bitmask = 1;
@@ -129,12 +128,12 @@ public:
 
 	/**
 	 * Write data to the PS/2 device.
-	 * 
+	 *
 	 * The data is buffered and will be clocked out in subsequent calls to `poll`.
-	 * 
+	 *
 	 * @param data the bytes to write to the device
 	 * @param data_len the number of bytes pointed to by `data`
-	 * 
+	 *
 	 * @return true if space in internal buffer to accept all the bytes, false if not enough space and write is rejected.
 	 */
 	bool writeBuffer(const uint8_t *data, size_t data_len)
@@ -187,12 +186,12 @@ private:
 			// Skip the start bit
 			m_current_word_bitmask = 2;
 			// 1) Bring the Clock line low for at least 100 microseconds
-			digitalWrite(m_pin_clk, LOW);
-			pinMode(m_pin_clk, OUTPUT);
+			fastDigitalWrite(PIN_CLK, LOW);
+			pinMode(PIN_CLK, OUTPUT);
 			setTimeout(150);
 		}
 
-		bool kb_clk_pin = digitalRead(m_pin_clk);
+		bool kb_clk_pin = fastDigitalRead(PIN_CLK);
 		if (kb_clk_pin != m_last_clk)
 		{
 			// We have an edge
@@ -214,28 +213,28 @@ private:
 			if (hasTimedOut()) {
 				m_write_state = Ps2WriteState::WaitClockLow;
 				// 2) Bring the Data line low.
-				digitalWrite(m_pin_data, LOW);
-				pinMode(m_pin_data, OUTPUT);
+				fastDigitalWrite(PIN_DAT, LOW);
+				pinMode(PIN_DAT, OUTPUT);
 				// 3) Release the Clock line.
-				pinMode(m_pin_clk, INPUT_PULLUP);
+				pinMode(PIN_CLK, INPUT_PULLUP);
 			}
 			break;
 		// 4) Wait for the device to bring the clock line low
 		//    (this is when we set the data line).
 		case Ps2WriteState::WaitClockLow:
-			if (digitalRead(m_pin_clk) == LOW) {
+			if (fastDigitalRead(PIN_CLK) == LOW) {
 				// Are we done?
 				if (m_current_word_bitmask == PS2_OUTGOING_MASK) {
 					// 9) All data + parity clocked out - time to Release data line
-					pinMode(m_pin_data, INPUT_PULLUP);
+					pinMode(PIN_DAT, INPUT_PULLUP);
 					m_write_state = Ps2WriteState::WaitDataLow;
 					setTimeout(150);
 				} else {
 					// 5) Set/reset the data pin according to the next bit
 					if (m_current_word & m_current_word_bitmask) {
-						digitalWrite(m_pin_data, HIGH);
+						fastDigitalWrite(PIN_DAT, HIGH);
 					} else {
-						digitalWrite(m_pin_data, LOW);					
+						fastDigitalWrite(PIN_DAT, LOW);
 					}
 					m_current_word_bitmask <<= 1;
 					m_write_state = Ps2WriteState::WaitClockHigh;
@@ -246,27 +245,27 @@ private:
 		// 6) Wait for device to bring the clock line high
 		//    (this is when the device grabs the data bit).
 		case Ps2WriteState::WaitClockHigh:
-			if (digitalRead(m_pin_clk) == HIGH) {
+			if (fastDigitalRead(PIN_CLK) == HIGH) {
 				m_write_state = Ps2WriteState::WaitClockLow;
 				setTimeout(150);
 			}
 			break;
-		// 10) Wait for the device to bring data low (for the ACK) 
+		// 10) Wait for the device to bring data low (for the ACK)
 		case Ps2WriteState::WaitDataLow:
-			if (digitalRead(m_pin_data) == LOW) {
+			if (fastDigitalRead(PIN_DAT) == LOW) {
 				m_write_state = Ps2WriteState::WaitFinalClockLow;
 				setTimeout(150);
 			}
 			break;
 		// 11) Wait for the device to bring clock low
 		case Ps2WriteState::WaitFinalClockLow:
-			if (digitalRead(m_pin_clk) == LOW) {
+			if (fastDigitalRead(PIN_CLK) == LOW) {
 				m_write_state = Ps2WriteState::WaitForRelease;
 				setTimeout(150);
 			}
 			break;
 		case Ps2WriteState::WaitForRelease:
-			if ( (digitalRead(m_pin_clk) == HIGH) && (digitalRead(m_pin_data) == HIGH) ) {
+			if ( (fastDigitalRead(PIN_CLK) == HIGH) && (fastDigitalRead(PIN_DAT) == HIGH) ) {
 				// All done, so remove from buffer
 				uint8_t b;
 				m_out_buffer.pop(b);
@@ -278,14 +277,14 @@ private:
 
 	void pollReadingWord()
 	{
-		bool kb_clk_pin = digitalRead(m_pin_clk);
+		bool kb_clk_pin = fastDigitalRead(PIN_CLK);
 		if (kb_clk_pin != m_last_clk)
 		{
 			// Edge
 			if (!kb_clk_pin)
 			{
 				// Falling edge
-				if (digitalRead(m_pin_data))
+				if (fastDigitalRead(PIN_DAT))
 				{
 					m_current_word |= m_current_word_bitmask;
 				}
@@ -399,8 +398,6 @@ private:
 
 	Ps2State m_state;
 	Ps2WriteState m_write_state;
-	int m_pin_clk;
-	int m_pin_data;
 	bool m_last_clk;
 	uint16_t m_current_word;
 	size_t m_current_word_bitmask;
