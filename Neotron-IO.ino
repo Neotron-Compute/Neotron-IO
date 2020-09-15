@@ -204,10 +204,16 @@ static void processInput( char inputChar )
 			{
 				if ( inputTarget == 'K' )
 				{
+					bufferPrint( "k" );
+					bufferPrintHex2( inputByte );
+					bufferPrintln();
 					gKeyboard.writeBuffer( &inputByte, 1 );
 				}
 				else if ( inputTarget == 'M' )
 				{
+					bufferPrint( "m" );
+					bufferPrintHex2( inputByte );
+					bufferPrintln();
 					gKeyboard.writeBuffer( &inputByte, 1 );
 				}
 			}
