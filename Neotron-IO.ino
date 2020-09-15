@@ -211,6 +211,7 @@ static void processInput( char inputChar )
 					gKeyboard.writeBuffer( &inputByte, 1 );
 				}
 			}
+			inputState = InputState::WantCommand;
 			break;
 	}
 }
