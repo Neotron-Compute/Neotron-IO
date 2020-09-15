@@ -100,6 +100,8 @@ Kxx
 
 Indicates that the Keyboard has delivered a byte over the keyboard PS/2 interface. The hex byte `xx` is the byte that was received.
 
+The PS/2 Keyboard protocol is documented at http://www-ug.eecg.toronto.edu/msl/nios_devices/datasheets/PS2%20Keyboard%20Protocol.htm.
+
 #### Mouse Byte Available
 
 
@@ -108,6 +110,8 @@ Mxx
 ```
 
 Indicates that the Mouse has delivered a byte over the mouse PS/2 interface. The hex byte `xx` is the byte that was received.
+
+The PS/2 Mouse protocol is documented at https://isdaman.com/alsos/hardware/mouse/ps2interface.htm.
 
 ### Commands
 
@@ -119,6 +123,8 @@ Kxx
 
 The `K` command sends the following hex byte (`xx`) to the keyboard PS/2 port. The Neotron IO controller will automatically hold the PS/2 device's clock line to signify that there is data to be sent, and clock out each byte in turn.
 
+The PS/2 Keyboard protocol is documented at http://www-ug.eecg.toronto.edu/msl/nios_devices/datasheets/PS2%20Keyboard%20Protocol.htm.
+
 #### Send byte to Mouse
 
 ```
@@ -126,6 +132,8 @@ Mxx
 ```
 
 The `M` command sends the following hex bytes (`xx`) to the mouse PS/2 port. The Neotron IO controller will automatically hold the PS/2 device's clock line to signify that there is data to be sent, and clock out each byte in turn.
+
+The PS/2 Mouse protocol is documented at https://isdaman.com/alsos/hardware/mouse/ps2interface.htm.
 
 ## Calibrating
 
