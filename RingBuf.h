@@ -96,9 +96,9 @@ class RingBuf
 	               "RingBuf with size greater than 65535 are forbidden" );
 
    private:
-	ET mBuffer[S];
-	IT mReadIndex;
-	IT mSize;
+	volatile ET mBuffer[S];
+	volatile IT mReadIndex;
+	volatile IT mSize;
 
 	IT writeIndex();
 
