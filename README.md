@@ -13,31 +13,31 @@ Firmware for the Neotron I/O Controller (a Microchip AtMega328), as fitted to th
 
 ### Neotron 32 v1.2.1
 
-| AtMega Pin | Arduino Name | Direction  | Function              |
-|:-----------|:-------------|:-----------|:----------------------|
-| PB0        | D8           | N/C        | Not used              |
-| PB1        | D9           | N/C        | Not used              |
-| PB2        | D10          | In         | `START_C_JS2`         |
-| PB3        | D11          | In         | `RIGHT_GND_JS2 + SCK` |
-| PB4        | D12          | In         | `LEFT_GND_JS2 + MISO` |
-| PB5        | D13          | In         | `DOWN_JS2 + MOSI`     |
-| PB6        | XTAL1        | In         | `A_B_JS2`             |
-| PB7        | XTAL2        | In         | `UP_JS2`              |
-| PC0        | A0           | Open-Drain | `KB_CLK`              |
-| PC1        | A1           | Open-Drain | `KB_DAT`              |
-| PC2        | A2           | Open-Drain | `MS_CLK`              |
-| PC3        | A3           | Open-Drain | `MS_DAT`              |
-| PC4        | A4           | Out        | `SELECT_JS1`          |
-| PC5        | A5           | Out        | `SELECT_JS2`          |
-| PC6        | RESET        | In         | `/RESET`              |
-| PD0        | D0           | Out        | `KBMS_TO_HOST`        |
-| PD1        | D1           | In         | `KBMS_FROM_HOST`      |
-| PD2        | D2           | In         | `START_C_JS1`         |
-| PD3        | D3           | In         | `RIGHT_GND_JS1`       |
-| PD4        | D4           | In         | `LEFT_GND_JS1`        |
-| PD5        | D5           | In         | `DOWN_JS1`            |
-| PD6        | D6           | In         | `A_B_JS1`             |
-| PD7        | D7           | In         | `UP_JS1`              |
+| AtMega Pin | Arduino Name | Pin Change  | Direction  | Function              |
+|:-----------|:-------------|:------------|:-----------|:----------------------|
+| PB0        | D8           | PCINT0      | N/C        | Not used              |
+| PB1        | D9           | PCINT1      | N/C        | Not used              |
+| PB2        | D10          | PCINT2      | In         | `START_C_JS2`         |
+| PB3        | D11          | PCINT3      | In         | `RIGHT_GND_JS2 + SCK` |
+| PB4        | D12          | PCINT4      | In         | `LEFT_GND_JS2 + MISO` |
+| PB5        | D13          | PCINT5      | In         | `DOWN_JS2 + MOSI`     |
+| PB6        | XTAL1        | PCINT6      | In         | `A_B_JS2`             |
+| PB7        | XTAL2        | PCINT7      | In         | `UP_JS2`              |
+| PC0        | A0           | **PCINT8**  | Open-Drain | `KB_CLK`              |
+| PC1        | A1           | PCINT9      | Open-Drain | `KB_DAT`              |
+| PC2        | A2           | **PCINT10** | Open-Drain | `MS_CLK`              |
+| PC3        | A3           | PCINT11     | Open-Drain | `MS_DAT`              |
+| PC4        | A4           | PCINT12     | Out        | `SELECT_JS1`          |
+| PC5        | A5           | PCINT13     | Out        | `SELECT_JS2`          |
+| PC6        | RESET        | PCINT14     | In         | `/RESET`              |
+| PD0        | D0           | PCINT16     | Out        | `KBMS_TO_HOST`        |
+| PD1        | D1           | PCINT17     | In         | `KBMS_FROM_HOST`      |
+| PD2        | D2           | PCINT18     | In         | `START_C_JS1`         |
+| PD3        | D3           | PCINT19     | In         | `RIGHT_GND_JS1`       |
+| PD4        | D4           | PCINT20     | In         | `LEFT_GND_JS1`        |
+| PD5        | D5           | PCINT21     | In         | `DOWN_JS1`            |
+| PD6        | D6           | PCINT22     | In         | `A_B_JS1`             |
+| PD7        | D7           | PCINT23     | In         | `UP_JS1`              |
 
 ## UART Interface
 

@@ -15,6 +15,27 @@
 #define MAX_PINS 4
 int pin_results[MAX_PINS];
 
+static void testClockInput( void )
+{
+  // ?
+}
+
+static void testClockOutput(Ps2::Level level)
+{
+  // ?
+}
+
+static void testDataInput( void )
+{
+  // ?
+}
+
+static void testDataOutput(Ps2::Level level)
+{
+  // ?
+}
+
+
 typedef bool (*test_fn_t)(const char **sz_name);
 
 #define DEFINE_TEST(test_name)                  \
@@ -29,60 +50,65 @@ typedef bool (*test_fn_t)(const char **sz_name);
 	}                                           \
 	static bool test_name##_inner(void)
 
-// Check PS/2 object times out
-DEFINE_TEST(ps2_timeout)
-{
-	Ps2<0, 1> ps2;
-	ps2.m_state = Ps2State::ReadingWord;
-	unsigned long target;
-	// Get a value that doesn't wrap
-	do
-	{
-		target = micros() + 1000;
-	} while (target < micros());
-
-	do
-	{
-		ps2.poll();
-	}
-	while(micros() < target);
-	return (ps2.m_state == Ps2State::Idle);
-}
-
 // Check PS/2 can collect bits
 DEFINE_TEST(ps2_collect_bits)
 {
 	// 0 is clk, 1 = data
-	Ps2<0, 1> ps2;
-	uint16_t test_word = (0x03 << 9) | (0xAA << 1);
-	for (int i = 0; i < 11; i++)
+	Ps2 ps2(testClockInput, testClockOutput, testDataInput, testDataOutput);
+	uint16_t test_word = (0x03 << 9) | (0xAA << 1) | 0;
+
+	for (int i = 0; i < 12; i++)
 	{
-		pin_results[0] = 1;
-		ps2.poll();
-		ps2.poll();
-		ps2.poll();
-		ps2.poll();
-		pin_results[1] = (test_word & (1 << i)) ? 1 : 0;
-		pin_results[0] = 0;
-		ps2.poll();
-		ps2.poll();
-		ps2.poll();
-		ps2.poll();
+		ps2.clockEdge( Ps2::Edge::EDGE_RISING, Ps2::Level::LEVEL_LOW );
+		ps2.clockEdge( Ps2::Edge::EDGE_FALLING, (test_word & (1 << i)) ? Ps2::Level::LEVEL_HIGH : Ps2::Level::LEVEL_LOW );
 	}
 
-	int read_byte = ps2.readBuffer();
+	int read_byte = ps2.poll();
 	// Should have collected 0xAA
 	return (read_byte == 0xAA);
 }
 
+// Check PS/2 can handle a timeout when collecting bits
+DEFINE_TEST(ps2_collect_bits_timeout)
+{
+	// 0 is clk, 1 = data
+	Ps2 ps2(testClockInput, testClockOutput, testDataInput, testDataOutput);
+
+	uint16_t test_word = (0x03 << 9) | (0xEE << 1) | 0;
+	// Send some of the bits
+	for (int i = 0; i < 5; i++)
+	{
+		ps2.clockEdge( Ps2::Edge::EDGE_RISING, Ps2::Level::LEVEL_LOW );
+		ps2.clockEdge( Ps2::Edge::EDGE_FALLING, (test_word & (1 << i)) ? Ps2::Level::LEVEL_HIGH : Ps2::Level::LEVEL_LOW );
+	}
+	// Oops .. didn't collect enough! This should now flush out the partial word.
+	for( int i = 0; i < 1000; i++ )
+	{
+		ps2.poll();
+	}
+
+	// Send a different word
+	test_word = (0x03 << 9) | (0xD1 << 1) | 0;
+	for (int i = 0; i < 16; i++)
+	{
+		ps2.clockEdge( Ps2::Edge::EDGE_RISING, Ps2::Level::LEVEL_LOW );
+		ps2.clockEdge( Ps2::Edge::EDGE_FALLING, (test_word & (1 << i)) ? Ps2::Level::LEVEL_HIGH : Ps2::Level::LEVEL_LOW );
+	}
+
+	int read_byte = ps2.poll();
+	// Should have collected 0xD1
+	return (read_byte == 0xD1);
+}
+
+// Check PS/2 can verify valid words
 DEFINE_TEST(ps2_validate_words)
 {
-	const int inputs[] = {0x600, 0x606, 0x402};
-	const int outputs[] = {0x00, 0x03, 0x01};
+	const int inputs[] = {0x600, 0x606, 0x402, 0x401};
+	const int outputs[] = {0x00, 0x03, 0x01, -1};
 	bool pass = true;
 	for (int i = 0; i < 3; i++)
 	{
-		int result = Ps2<0, 1>::validateWord(inputs[i]);
+		int result = Ps2::validateWord(inputs[i]);
 		pass &= (result == outputs[i]);
 	}
 	return pass;
@@ -93,8 +119,8 @@ DEFINE_TEST(ps2_encode_bytes)
 	bool pass = true;
 	for(int i = 0; i < 256; i++)
 	{
-		uint16_t word = Ps2<0, 1>::encodeByte((uint8_t) i);
-		uint8_t output = Ps2<0, 1>::validateWord(word);
+		uint16_t word = Ps2::encodeByte((uint8_t) i);
+		uint8_t output = Ps2::validateWord(word);
 		if (i != output) {
 			printf("%02x != %02x (%04x)\n", i, output, word);
 			pass = false;
@@ -108,39 +134,9 @@ int bitRead(int word, int bit)
 	return ((word & (1 << bit)) != 0) ? 1 : 0;
 }
 
-void digitalWrite(int pin, bool level)
-{
-#ifdef VERBOSE_DEBUG
-	printf("Writing pin %d = %d\r\n", pin, level);
-#endif
-}
-
-void pinMode(int pin, int mode)
-{
-#ifdef VERBOSE_DEBUG
-	printf("Setting pin %d mode = %d\r\n", pin, mode);
-#endif
-}
-
-int digitalRead(int pin)
-{
-#ifdef VERBOSE_DEBUG
-	printf("Reading pin %d = %d\r\n", pin, pin_results[pin]);
-#endif
-	return pin_results[pin];
-}
-
-unsigned long micros() {
-	struct timespec now;
-	clock_gettime(CLOCK_MONOTONIC, &now);
-	unsigned long time = now.tv_sec * 1000000;
-	time += now.tv_nsec / 1000;
-	return time;
-}
-
 const test_fn_t TESTS[] = {
-	ps2_timeout,
 	ps2_collect_bits,
+	ps2_collect_bits_timeout,
 	ps2_validate_words,
 	ps2_encode_bytes,
 };
