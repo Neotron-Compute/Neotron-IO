@@ -1,390 +1,524 @@
 /**
- * Neotron-IO Firmware.
- *
- * Uses MiniCore for the AtMega328P. Set to 8 MHz Internal RC. Don't go higher
- * than 9600 baud.
- *
- * This project is also licensed under the GPL (v3 or later version, at your
- * choice). See the [LICENCE](./LICENCE) file.
- */
+   This is the Neotron IO controller firmware. It is basically
+   a two channel PS/2 to single channel UART adaptor.
 
-#define REAL_ARDUINO_UNO
+    - Copyright: (c) Jonathan 'theJPster' Pallant, 2020
+    - Licence: Licensed under the GPL (v3 or later version, at your choice). See the [LICENCE](./LICENCE) file.
+    - Version: 0.9.0
+*/
 
-//
-// Includes
-//
-#include <EEPROM.h>
+/// Firmware version
+#define VERSION_STRING "v0.9.0"
 
-#include "RingBuf.h"
-#include "joystick.h"
-#include "ps2.h"
+/// How long we wait for a command over the UART
+#define CMD_TIMEOUT_MS 1000
 
-//
-// Constants
-//
+/// The size of the data buffers. Should be a power of 2 for efficiency.
+#define BUFFER_LEN 16
 
-// Pins D0 and D1 are for the UART
-const int JS1_PIN_START_C = 2;
-const int JS1_PIN_GND_RIGHT = 3;
-const int JS1_PIN_GND_LEFT = 4;
-const int JS1_PIN_DOWN = 5;
-const int JS1_PIN_AB = 6;
-const int JS1_PIN_UP = 7;
+/// Maximum number of ms before we reset the bit collector.
+#define MAX_DELAY 100
 
-#ifdef REAL_ARDUINO_UNO
-const int JS2_PIN_AB = 8;
-const int JS2_PIN_UP = 9;
-#elif NEOTRON_32
-const int JS2_PIN_AB = 20;
-const int JS2_PIN_UP = 21;
-#else
-#error Please select a supported board
-#endif
-const int JS2_PIN_START_C = 10;
-const int JS2_PIN_GND_RIGHT = 11;
-const int JS2_PIN_GND_LEFT = 12;
-const int JS2_PIN_DOWN = 13;
+/// Keyboard PS/2 Clock, on INT0. Must be on an interrupt pin.
+static constexpr uint8_t KB_CLK = 2;
 
-const int KB_CLK = A0;
-const int KB_DAT = A1;
-const int MS_CLK = A2;
-const int MS_DAT = A3;
-const int JS2_PIN_SELECT = A4;
-const int JS1_PIN_SELECT = A5;
+/// Keyboard PS/2 Data. Can be on any pin.
+static constexpr uint8_t KB_DAT = 4;
 
-const uint8_t EEPROM_MAGIC_BYTE = 0xE0;
-const int EEPROM_ADDR_MAGIC = 0;
-const int EEPROM_ADDR_OSCCAL = 1;
+/// Mouse PS/2 Clock, on INT1. Must be on an interrupt pin.
+static constexpr uint8_t MS_CLK = 3;
 
-const int CALIBRATION_OUT = MS_DAT;
+/// Mouse PS/2 Data. Can be on any pin.
+static constexpr uint8_t MS_DAT = 5;
 
-const uint16_t DEBOUNCE_LOOPS = 5;
-
-const size_t MAX_INPUT_BUFFER = 16;
-
-//
-// Variables
-//
-
-static Joystick<JS1_PIN_UP,
-                JS1_PIN_DOWN,
-                JS1_PIN_GND_LEFT,
-                JS1_PIN_GND_RIGHT,
-                JS1_PIN_AB,
-                JS1_PIN_START_C,
-                JS1_PIN_SELECT>
-    gJs1;
-static Joystick<JS2_PIN_UP,
-                JS2_PIN_DOWN,
-                JS2_PIN_GND_LEFT,
-                JS2_PIN_GND_RIGHT,
-                JS2_PIN_AB,
-                JS2_PIN_START_C,
-                JS2_PIN_SELECT>
-    gJs2;
-static Ps2<KB_CLK, KB_DAT> gKeyboard;
-static Ps2<MS_CLK, MS_DAT> gMouse;
-static RingBuf<char, 256> gSerialBuffer;
-static bool gCalibrationMode = 0;
-
-//
-// Private Function Declarations
-//
-
-static void bufferPrint( const String& s );
-static void bufferPrintln();
-static void bufferPrintln( const String& s );
-static void bufferPrintHex( uint16_t value );
-static void bufferPrintHex2( uint8_t value );
-static char wordToHex( uint16_t value, uint8_t nibble_idx );
-
-//
-// Functions
-//
-
-// the setup function runs once when you press reset or power the board
-void setup()
+template <uint8_t DAT_PIN>
+class Ps2
 {
-	if ( EEPROM.read( EEPROM_ADDR_MAGIC ) == EEPROM_MAGIC_BYTE )
+   public:
+	/// Returned from read when buffer empty:
+	static constexpr uint16_t ERR_EMPTY = 0x100;
+
+	/// Returned from read when parity error:
+	static constexpr uint16_t ERR_PARITY = 0x200;
+
+	/// Got into a bad state
+	static constexpr uint16_t ERR_STATE = 0x300;
+
+	/**
+	 * Constructor
+	 */
+	Ps2()
+	    : bit_count( 0 ),
+	      odd_parity( false ),
+	      data( 0 ),
+	      last_time( 0 ),
+	      widx( 0 ),
+	      ridx( 0 )
 	{
-		// Load OSCCAL
-		OSCCAL = EEPROM.read( EEPROM_ADDR_OSCCAL );
 	}
 
-	// One of the few 'standard' baud rates you can easily hit from an 8 MHz
-	// clock
-	Serial.begin( 9600 );
-	// Sign-on banner
-	Serial.print( "b020\n" );
-
-	if ( gJs1.scan() )
+	/**
+	   Resets the bit count
+	*/
+	void reset( void )
 	{
-		JoystickResult test_for_cal_mode = gJs1.read();
-		// Press up and down simultaneously on start-up to enter cal-mode
-		gCalibrationMode = test_for_cal_mode.is_up_pressed() &&
-		                   test_for_cal_mode.is_down_pressed();
-	}
-	if ( gCalibrationMode )
-	{
-		// The frequency of this output should be 8 MHz / (256 * 64 * 2), or
-		// 244.14 Hz. You need to adjust OSCCAL until you get within 5% for a
-		// functioning UART - the closer the better as it drifts over
-		// temperature.
-		analogWrite( CALIBRATION_OUT, 128 );
-	}
-}
-
-enum class InputState
-{
-	WantCommand,
-	WantHiNibble,
-	WantLoNibble,
-	WantNewline,
-};
-
-static InputState inputState = InputState::WantCommand;
-static char inputTarget;
-static uint8_t inputByte;
-
-static void processInput( char inputChar )
-{
-	switch ( inputState )
-	{
-		case InputState::WantCommand:
-			if ( ( inputChar == 'K' ) || ( inputChar == 'M' ) )
-			{
-				inputTarget = inputChar;
-				inputState = InputState::WantHiNibble;
-			}
-			break;
-		case InputState::WantHiNibble:
-			if ( ( inputChar >= '0' ) && ( inputChar <= '9' ) )
-			{
-				inputByte = ( inputChar - '0' ) << 4;
-				inputState = InputState::WantLoNibble;
-			}
-			else if ( ( inputChar >= 'A' ) && ( inputChar <= 'F' ) )
-			{
-				inputByte = ( 10 + inputChar - 'A' ) << 4;
-				inputState = InputState::WantLoNibble;
-			}
-			else if ( ( inputChar >= 'a' ) && ( inputChar <= 'f' ) )
-			{
-				inputByte = ( 10 + inputChar - 'a' ) << 4;
-				inputState = InputState::WantLoNibble;
-			}
-			else
-			{
-				inputState = InputState::WantCommand;
-			}
-			break;
-		case InputState::WantLoNibble:
-			if ( ( inputChar >= '0' ) && ( inputChar <= '9' ) )
-			{
-				inputByte |= ( inputChar - '0' );
-				inputState = InputState::WantNewline;
-			}
-			else if ( ( inputChar >= 'A' ) && ( inputChar <= 'F' ) )
-			{
-				inputByte |= ( 10 + inputChar - 'A' );
-				inputState = InputState::WantNewline;
-			}
-			else if ( ( inputChar >= 'a' ) && ( inputChar <= 'f' ) )
-			{
-				inputByte |= ( 10 + inputChar - 'a' );
-				inputState = InputState::WantNewline;
-			}
-			else
-			{
-				inputState = InputState::WantCommand;
-			}
-			break;
-		case InputState::WantNewline:
-			if ( ( inputChar == '\r' ) || ( inputChar == '\n' ) )
-			{
-				if ( inputTarget == 'K' )
-				{
-					bufferPrint( "K" );
-					bufferPrintHex2( inputByte );
-					bufferPrintln();
-					gKeyboard.writeBuffer( &inputByte, 1 );
-				}
-				else if ( inputTarget == 'M' )
-				{
-					bufferPrint( "M" );
-					bufferPrintHex2( inputByte );
-					bufferPrintln();
-					gKeyboard.writeBuffer( &inputByte, 1 );
-				}
-			}
-			inputState = InputState::WantCommand;
-			break;
-	}
-}
-
-// the loop function runs over and over again forever
-void loop()
-{
-	static uint16_t debounce_count = 0;
-	JoystickResult js1_bits;
-	JoystickResult js2_bits;
-
-	// Process incoming characters from the host
-	if ( Serial.available() )
-	{
-		char inputChar = Serial.read();
-		processInput( inputChar );
+		bit_count = 0;
+		odd_parity = false;
+		data = 0;
 	}
 
-	// Process outbound characters for the host
-	if ( Serial.availableForWrite() )
+	/**
+	   Call this on a falling clock edge.
+	*/
+	void irq( void )
 	{
-		char data;
-		if ( gSerialBuffer.pop( data ) )
+		unsigned long now = millis();
+		if ( ( now - last_time ) > MAX_DELAY )
 		{
-			Serial.write( data );
+			reset();
 		}
-	}
 
-	// Process the keyboard
-	gKeyboard.poll();
-	int keyboardByte = gKeyboard.readBuffer();
-	if ( keyboardByte >= 0 )
-	{
-		bufferPrint( "k" );
-		bufferPrintHex2( keyboardByte );
-		bufferPrintln();
-	}
-
-	// Process the mouse
-	gMouse.poll();
-	int mouseByte = gMouse.readBuffer();
-	if ( mouseByte >= 0 )
-	{
-		bufferPrint( "m" );
-		bufferPrintHex2( mouseByte );
-		bufferPrintln();
-	}
-
-	// Process Joystick 1
-	if ( gJs1.scan() )
-	{
-		js1_bits = gJs1.read();
-		bufferPrint( "s" );
-		bufferPrintHex( js1_bits.value() );
-		bufferPrintln();
-	}
-
-	// Process Joystick 2
-	if ( gJs2.scan() )
-	{
-		js2_bits = gJs2.read();
-		bufferPrint( "t" );
-		bufferPrintHex( js2_bits.value() );
-		bufferPrintln();
-	}
-
-	if ( gCalibrationMode )
-	{
-		// Look at joystick and trim OSCCAL up or down
-		if ( js1_bits.is_a_pressed() )
+		switch ( bit_count++ )
 		{
-			// Has the A button been down for enough time?
-			if ( debounce_count == DEBOUNCE_LOOPS )
-			{
-				// Yes it has. If the are pressing up, increase OSCCAL.
-				// If they are pressing down, decrease OSCCAL.
-				if ( js1_bits.is_up_pressed() )
+			case 0:
+				// Start bit - ignore
+				break;
+			case 1:
+			case 2:
+			case 3:
+			case 4:
+			case 5:
+			case 6:
+			case 7:
+			case 8:
+				// Data bits
+				data >>= 1;
+				if ( digitalRead( DAT_PIN ) != LOW )
 				{
-					OSCCAL++;
+					data |= 0x80;
+					odd_parity ^= true;
 				}
-				else if ( js1_bits.is_down_pressed() )
+				break;
+			case 9:
+				// Parity bit
+				if ( digitalRead( DAT_PIN ) != LOW )
 				{
-					OSCCAL--;
+					odd_parity ^= true;
 				}
-				debounce_count++;
-			}
-			else if ( debounce_count < DEBOUNCE_LOOPS )
-			{
-				debounce_count++;
-			}
+				break;
+			case 10:
+				// Stop bit - time to check we have odd parity
+				if ( odd_parity )
+				{
+					// Store good data
+					buffer[widx % BUFFER_LEN] = data;
+				}
+				else
+				{
+					// Store obviously bad data
+					buffer[widx % BUFFER_LEN] = ERR_PARITY | data;
+				}
+				widx += 1;
+				reset();
+				break;
+			default:
+				// Should never get here...
+				buffer[widx % BUFFER_LEN] = ERR_STATE;
+				widx += 1;
+				break;
+		}
+		last_time = now;
+	}
+
+	/**
+	   Get the next byte from the received bytes buffer.
+	*/
+	uint16_t read( void )
+	{
+		if ( ( ridx != widx ) )
+		{
+			uint16_t result = buffer[ridx % BUFFER_LEN];
+			ridx += 1;
+			return result;
 		}
 		else
 		{
-			debounce_count = 0;
+			return ERR_EMPTY;
 		}
-		if ( js1_bits.is_start_pressed() )
-		{
-			EEPROM.write( EEPROM_ADDR_MAGIC, EEPROM_MAGIC_BYTE );
-			EEPROM.write( EEPROM_ADDR_OSCCAL, OSCCAL );
-			while ( 1 )
-			{
-				// Lock up once we've saved the EEPROM
-				bufferPrintln( "RESET ME" );
-			}
-		}
-		// Whatever happens, print out the current OSCCAL
-		bufferPrint( "O" );
-		bufferPrintHex( OSCCAL );
-		bufferPrintln();
 	}
+
+   private:
+	/// This is where we track how many bits we have received.
+	uint8_t bit_count;
+	/// This is where we track the number of `1` bits in the received data.
+	bool odd_parity;
+	/// This is where we collect the bits from the device.
+	uint8_t data;
+	/// This is the last time we received an IRQ, in milliseconds since startup
+	/// (see `millis()`).
+	unsigned long last_time;
+	/// This is where we collect bytes received from the PS/2 device ready to
+	/// send to the host.
+	volatile uint16_t buffer[BUFFER_LEN];
+	/// The `buffer` write index. Wraps at 255, so use `% BUFFER_LEN` when
+	/// accessing buffer.
+	volatile uint8_t widx;
+	/// The `buffer` read index. Wraps at 255, so use `% BUFFER_LEN` when
+	/// accessing buffer.
+	volatile uint8_t ridx;
+};
+
+Ps2<KB_DAT> keyboard;
+Ps2<MS_DAT> mouse;
+
+/**
+   Called when keyboard clock has falling edge.
+*/
+void kb_irq( void )
+{
+	keyboard.irq();
 }
 
 /**
- * Print to the serial buffer.
- */
-static void bufferPrint( const String& s )
+   Called when mouse clock has falling edge.
+*/
+void ms_irq( void )
 {
-	for ( char const& c : s )
+	mouse.irq();
+}
+
+/**
+   Stop the two PS/2 receivers.
+
+   Any packets that are mid-transmission will get re-sent by the remote device.
+*/
+void stop_rx()
+{
+	// Data = high, Clock = low: Communication Inhibited.
+	pinMode( KB_DAT, INPUT_PULLUP );
+	pinMode( MS_DAT, INPUT_PULLUP );
+	detachInterrupt( digitalPinToInterrupt( KB_CLK ) );
+	detachInterrupt( digitalPinToInterrupt( MS_CLK ) );
+	digitalWrite( KB_CLK, LOW );
+	pinMode( KB_CLK, OUTPUT );
+	digitalWrite( MS_CLK, LOW );
+	pinMode( MS_CLK, OUTPUT );
+	keyboard.reset();
+	mouse.reset();
+}
+
+/**
+   Start the two PS/2 receivers.
+*/
+void start_rx()
+{
+	// Data = high, Clock = high: Idle state.
+	keyboard.reset();
+	mouse.reset();
+	attachInterrupt( digitalPinToInterrupt( KB_CLK ), kb_irq, FALLING );
+	attachInterrupt( digitalPinToInterrupt( MS_CLK ), ms_irq, FALLING );
+	pinMode( KB_DAT, INPUT_PULLUP );
+	pinMode( MS_DAT, INPUT_PULLUP );
+	pinMode( KB_CLK, INPUT_PULLUP );
+	pinMode( KB_CLK, INPUT_PULLUP );
+}
+
+/**
+ * Busy-wait (up to a certain number of milliseconds) for a serial byte to
+ * arrive.
+ */
+int read_with_timeout( uint32_t timeout_ms )
+{
+	uint32_t start = millis();
+	while ( ( millis() - start ) < timeout_ms )
 	{
-		gSerialBuffer.push( c );
+		if ( Serial.available() )
+		{
+			return Serial.read();
+		}
+	}
+	return -1;
+}
+
+/**
+ * Busy-wait (up to a certain number of milliseconds) for a pin to reach a
+ * level.
+ */
+bool wait_for_level( int pin, int wanted_level, uint32_t timeout_ms )
+{
+	uint32_t start = millis();
+	while ( ( millis() - start ) < timeout_ms )
+	{
+		int current_level = digitalRead( pin );
+		if ( current_level == wanted_level )
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+/*
+   The host wants to send a byte to the given device.
+*/
+uint8_t handle_command( const uint8_t clk_pin, const uint8_t dat_pin )
+{
+	// Read hex byte
+	int nibble1 = read_with_timeout( CMD_TIMEOUT_MS );
+	if ( !isxdigit( nibble1 ) )
+	{
+		return 1;
+	}
+
+	int nibble2 = read_with_timeout( CMD_TIMEOUT_MS );
+	if ( !isxdigit( nibble2 ) )
+	{
+		return 2;
+	}
+
+	int lf = read_with_timeout( CMD_TIMEOUT_MS );
+	if ( lf != '\n' )
+	{
+		return 3;
+	}
+
+	uint8_t data = 0;
+
+	// Parse top nibble
+	if ( ( nibble1 >= 'a' ) && ( nibble1 <= 'f' ) )
+	{
+		data = ( 10 + nibble1 - 'a' ) << 4;
+	}
+	else if ( ( nibble1 >= 'A' ) && ( nibble1 <= 'F' ) )
+	{
+		data = ( 10 + nibble1 - 'A' ) << 4;
+	}
+	else
+	{
+		data = ( nibble1 - '0' ) << 4;
+	}
+
+	// Parse bottom nibble
+	if ( ( nibble2 >= 'a' ) && ( nibble2 <= 'f' ) )
+	{
+		data |= ( 10 + nibble2 - 'a' );
+	}
+	else if ( ( nibble2 >= 'A' ) && ( nibble2 <= 'F' ) )
+	{
+		data |= ( 10 + nibble2 - 'A' );
+	}
+	else
+	{
+		data |= ( nibble2 - '0' );
+	}
+
+	// 1)   Bring the Clock line low for at least 100 microseconds to inhibit
+	// comms. We did this before we entered this function and we've delayed a
+	// load already waiting for the Serial bytes, but a bit more won't hurt.
+
+	delayMicroseconds( 100 );
+
+	// Data = low, Clock = high: Host Request-to-Send
+	// Note that data sent from the host to the device is read on the rising
+	// edge
+
+	// 2)   Bring the Data line low.
+	digitalWrite( dat_pin, LOW );
+	pinMode( dat_pin, OUTPUT );
+
+	// 3)   Release the Clock line.
+	pinMode( clk_pin, INPUT_PULLUP );
+
+	// 4)   Wait for the device to bring the Clock line low.
+	// 15ms is the upper limit specified in the protocol
+	if ( !wait_for_level( clk_pin, LOW, 15 ) )
+	{
+		return 4;
+	}
+
+	bool odd_parity = false;
+	for ( uint8_t bits = 0; bits < 8; bits++ )
+	{
+		// 5)   Set/reset the Data line to send the first data bit
+		if ( data & 1 )
+		{
+			digitalWrite( dat_pin, HIGH );
+			odd_parity ^= true;
+		}
+		else
+		{
+			digitalWrite( dat_pin, LOW );
+		}
+		data >>= 1;
+		// 6)   Wait for the device to bring Clock high.
+		// We should only wait 2ms for the whole byte, but this will do.
+		if ( !wait_for_level( clk_pin, HIGH, 3 ) )
+		{
+			return 5;
+		}
+		// 7)   Wait for the device to bring Clock low.
+		if ( !wait_for_level( clk_pin, LOW, 3 ) )
+		{
+			return 6;
+		}
+		// 8)   Repeat steps 5-7 for the *other seven data bits* and the parity
+		// bit
+	}
+
+	// 8)   Repeat steps 5-7 for the parity bit
+	digitalWrite( dat_pin, odd_parity ? LOW : HIGH );
+	if ( !wait_for_level( clk_pin, HIGH, 3 ) )
+	{
+		return 7;
+	}
+	if ( !wait_for_level( clk_pin, LOW, 3 ) )
+	{
+		return 8;
+	}
+
+	// 9)   Send a stop bit
+	digitalWrite( dat_pin, HIGH );
+	if ( !wait_for_level( clk_pin, HIGH, 3 ) )
+	{
+		return 9;
+	}
+	if ( !wait_for_level( clk_pin, LOW, 3 ) )
+	{
+		return 10;
+	}
+
+	// 10)   Release the Data line.
+	pinMode( dat_pin, INPUT_PULLUP );
+
+	// 11) Wait for the device to bring Clock low.
+	if ( !wait_for_level( clk_pin, LOW, 50 ) )
+	{
+		return 11;
+	}
+
+	// 12) Read the ACK bit on the falling edge of the clock
+	bool ack_bit = digitalRead( dat_pin );
+
+	// 13) Wait for the device to release Clock
+	if ( !wait_for_level( clk_pin, HIGH, 50 ) )
+	{
+		return 12;
+	}
+
+	// Inhibit comms again
+	digitalWrite( clk_pin, LOW );
+	pinMode( clk_pin, OUTPUT );
+
+	return ack_bit ? 13 : 0;
+}
+
+/**
+   Set-up routine. Called once.
+*/
+void setup()
+{
+	Serial.begin( 9600 );
+	Serial.println( "V: Neotron IO " VERSION_STRING );
+	start_rx();
+}
+
+/**
+   Main routine. Called repeatedly.
+*/
+void loop()
+{
+	static const char HEX_CHARS[] = "0123456789ABCDEF";
+
+	if ( Serial.availableForWrite() )
+	{
+		int data = keyboard.read();
+		if ( data != keyboard.ERR_EMPTY )
+		{
+			if ( data >= 0x100 )
+			{
+				Serial.write( 'E' );
+				Serial.write( HEX_CHARS[( data >> 12 ) & 0x0F] );
+				Serial.write( HEX_CHARS[( data >> 8 ) & 0x0F] );
+			}
+			else
+			{
+				Serial.write( 'K' );
+			}
+			Serial.write( HEX_CHARS[( data >> 4 ) & 0x0F] );
+			Serial.write( HEX_CHARS[data & 0x0F] );
+			Serial.write( '\n' );
+		}
+	}
+
+	if ( Serial.availableForWrite() )
+	{
+		int data = mouse.read();
+		if ( data != mouse.ERR_EMPTY )
+		{
+			if ( data >= 0x100 )
+			{
+				Serial.write( 'O' );
+				Serial.write( HEX_CHARS[( data >> 12 ) & 0x0F] );
+				Serial.write( HEX_CHARS[( data >> 8 ) & 0x0F] );
+			}
+			else
+			{
+				Serial.write( 'M' );
+			}
+			Serial.write( HEX_CHARS[( data >> 4 ) & 0x0F] );
+			Serial.write( HEX_CHARS[data & 0x0F] );
+			Serial.write( '\n' );
+		}
+	}
+
+	if ( Serial.available() )
+	{
+		uint8_t e = 0;
+		char cmd = Serial.read();
+		switch ( cmd )
+		{
+			case 'K':
+				// Disable all devices by holding clock low
+				stop_rx();
+				// Process keyboard command
+				e = handle_command( KB_CLK, KB_DAT );
+				// Start receivers again
+				start_rx();
+				if ( e != 0 )
+				{
+					Serial.write( 'S' );
+					Serial.write( HEX_CHARS[( e >> 4 ) & 0x0F] );
+					Serial.write( HEX_CHARS[e & 0x0F] );
+					Serial.write( '\n' );
+				}
+				else
+				{
+					Serial.println( "OK" );
+				}
+				break;
+			case 'M':
+				// Disable all devices by holding clock low
+				stop_rx();
+				// Process mouse command
+				e = handle_command( MS_CLK, MS_DAT );
+				// Start receivers again
+				start_rx();
+				if ( e != 0 )
+				{
+					Serial.write( 'S' );
+					Serial.write( HEX_CHARS[( e >> 4 ) & 0x0F] );
+					Serial.write( HEX_CHARS[e & 0x0F] );
+					Serial.write( '\n' );
+				}
+				else
+				{
+					Serial.println( "OK" );
+				}
+				break;
+			default:
+				break;
+		}
 	}
 }
 
-/**
- * Print a newline.
- */
-static void bufferPrintln()
-{
-	bufferPrint( "\n" );
-}
-
-/**
- * Print a string, then a newline.
- */
-static void bufferPrintln( const String& s )
-{
-	bufferPrint( s );
-	bufferPrint( "\n" );
-}
-
-/**
- * Print a 16-bit word as four hex nibbles, big-endian.
- */
-static void bufferPrintHex( uint16_t value )
-{
-	gSerialBuffer.push( wordToHex( value, 3 ) );
-	gSerialBuffer.push( wordToHex( value, 2 ) );
-	gSerialBuffer.push( wordToHex( value, 1 ) );
-	gSerialBuffer.push( wordToHex( value, 0 ) );
-}
-
-/**
- * Print an 8-bit byte as two hex nibbles, big-endian.
- */
-static void bufferPrintHex2( uint8_t value )
-{
-	gSerialBuffer.push( wordToHex( value, 1 ) );
-	gSerialBuffer.push( wordToHex( value, 0 ) );
-}
-
-/**
- * Convert 4 bits from an integer to a single hex nibble.
- */
-static char wordToHex( uint16_t value, uint8_t nibble_idx )
-{
-	static const char hexNibbles[] = { '0', '1', '2', '3', '4', '5', '6', '7',
-	                                   '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' };
-	uint8_t nibble = ( value >> ( 4 * nibble_idx ) ) & 0x000F;
-	return hexNibbles[nibble];
-}
+// End of file

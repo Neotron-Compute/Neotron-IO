@@ -25,9 +25,6 @@ jobs:
     - name: Setup Arduino CLI
       uses: arduino/setup-arduino-cli@v1.0.0
 
-    - name: Run Unit Tests
-      run: ./test.sh
-
     - name: Install MiniCore
       run: |
         sudo apt update

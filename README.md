@@ -6,12 +6,14 @@ Firmware for the Neotron I/O Controller (a Microchip AtMega328), as fitted to th
 
 * PS/2 Keyboard Input
 * PS/2 Mouse Input
-* 2x Atari/SEGA MegaDrive/SEGA Genesis compatible 9-pin Joystick inputs
+* 2x Atari/SEGA MegaDrive/SEGA Genesis compatible 9-pin Joystick inputs (NB: This might get removed...)
 * Simple ASCII protocol to the Host CPU over UART
 
 ## Pinout
 
 ### Neotron 32 v1.2.1
+
+This pinout doesn't work because we didn't put Keyboard Clock and Mouse Clock on dedicated external interrupt pins. Instead we have to waste cycles using the Pin Change interrupts.
 
 | AtMega Pin | Arduino Name | Direction  | Function              |
 |:-----------|:-------------|:-----------|:----------------------|
@@ -39,6 +41,24 @@ Firmware for the Neotron I/O Controller (a Microchip AtMega328), as fitted to th
 | PD6        | D6           | In         | `A_B_JS1`             |
 | PD7        | D7           | In         | `UP_JS1`              |
 
+### Neotron 32 v2.0.0
+
+TODO: Put the new Neotron IO pinout here.
+
+```
+/// Keyboard PS/2 Clock, on INT0. Must be on an interrupt pin.
+static constexpr uint8_t KB_CLK = 2;
+
+/// Keyboard PS/2 Data. Can be on any pin.
+static constexpr uint8_t KB_DAT = 4;
+
+/// Mouse PS/2 Clock, on INT1. Must be on an interrupt pin.
+static constexpr uint8_t MS_CLK = 3;
+
+/// Mouse PS/2 Data. Can be on any pin.
+static constexpr uint8_t MS_DAT = 5;
+```
+
 ## UART Interface
 
 This version of Netron IO implements a basic set of commands over the UART. Each command is plain ASCII, and is terminated by a new-line character (`\n`). Carriage-return characters (`\r`) are ignored, and any raw data is sent hex-encoded.
@@ -48,10 +68,10 @@ This version of Netron IO implements a basic set of commands over the UART. Each
 #### Booted
 
 ```
-B020
+V: Neotron IO v0.9.0
 ```
 
-The `B` indicates that the device has booted. The following three hex digits are the version number, as major, minor and patch.
+The `V` indicates that the device has booted and is reporting version info.
 
 #### Joystick 1 Changed
 
@@ -94,22 +114,27 @@ Indicates Joystick 2 has changed state. The 16-bit hex word `xxxx` indicates the
 
 #### Keyboard Byte Received
 
+A good byte looks like:
+
 ```
-kxx
+Kxx
 ```
 
-Indicates that the Keyboard has delivered a byte over the keyboard PS/2 interface. The hex byte `xx` is the byte that was received.
+This indicates that the Keyboard has delivered a byte over the keyboard PS/2 interface. The hex byte `xx` is the byte that was received.
+
+A bad byte looks like:
+
+```
+Exxxx
+```
+
+Where xxxx is the error code.
 
 The PS/2 Keyboard protocol is documented at http://www-ug.eecg.toronto.edu/msl/nios_devices/datasheets/PS2%20Keyboard%20Protocol.htm.
 
 #### Mouse Byte Received
 
-
-```
-mxx
-```
-
-Indicates that the Mouse has delivered a byte over the mouse PS/2 interface. The hex byte `xx` is the byte that was received.
+As per *Keyboard Byte Received* but prefixed with an `M` for mouse data, or an `O` for a mouse error.
 
 The PS/2 Mouse protocol is documented at https://isdaman.com/alsos/hardware/mouse/ps2interface.htm.
 
@@ -123,6 +148,8 @@ Kxx
 
 The `K` command sends the following hex byte (`xx`) to the keyboard PS/2 port. The Neotron IO controller will automatically hold the PS/2 device's clock line to signify that there is data to be sent, and clock out each byte in turn.
 
+You will either get an `OK` or an `Sxx` in response, and you should wait until you get either.
+
 The PS/2 Keyboard protocol is documented at http://www-ug.eecg.toronto.edu/msl/nios_devices/datasheets/PS2%20Keyboard%20Protocol.htm.
 
 #### Send byte to Mouse
@@ -133,9 +160,13 @@ Mxx
 
 The `M` command sends the following hex bytes (`xx`) to the mouse PS/2 port. The Neotron IO controller will automatically hold the PS/2 device's clock line to signify that there is data to be sent, and clock out each byte in turn.
 
+You will either get an `OK` or an `Sxx` in response, and you should wait until you get either.
+
 The PS/2 Mouse protocol is documented at https://isdaman.com/alsos/hardware/mouse/ps2interface.htm.
 
 ## Calibrating
+
+_TODO: THIS IS MISSING IN THIS BRANCH._
 
 The Neotron-32 hardware doesn't have a Crystal for the Neotron-IO chip. You must therefore configure it to use the 8 MHz internal-RC. Unfortunately the internal-RC is only accurate to ±10%, while for a functioning UART you need the clock to be within ± 5%. To work around this, if you boot the device with pin PB0 held low, it enter its custom Calibration Mode.
 
